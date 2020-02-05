@@ -2,7 +2,7 @@
 
 all: quantex_interim_report_1.pdf
 
-quantex_interim_report_1.pdf: quantex_interim_report_1.tex library.bib
+quantex_interim_report_1.pdf: quantex_interim_report_1.tex library.bib evaluations.tex design.tex
 	latexmk -pdf quantex_interim_report_1.tex
 
 clean:
