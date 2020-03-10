@@ -18,7 +18,7 @@
 
     @test begin
         # test conversion to json and back maintains graph
-        tng_to_json_from_json = to_json(from_json(tng_json))
+        tng_to_json_from_json = to_json(tng_from_json(tng_json))
         tng_to_json_from_json == tng_json
     end
 end
