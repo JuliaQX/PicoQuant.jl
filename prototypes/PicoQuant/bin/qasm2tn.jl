@@ -18,7 +18,8 @@ function parse_commandline()
                 required = true
             "--output", "-o"
                 help = "Output file to write tensor network graph to"
-                required = true
+                arg_type = String
+                default = ""
             "--indent"
                 help = "Indent to use in output json file"
                 arg_type = Int
@@ -31,11 +32,17 @@ end
 function main()
     parsed_args = parse_commandline()
 
-    circuit = load_qasm_as_circuit_from_file(parsed_args["qasm"])
+    qasm_filename = parsed_args["qasm"]
+    circuit = load_qasm_as_circuit_from_file(qasm_filename)
 
     tng = convert_to_tensor_network_graph(circuit)
 
-    open(parsed_args["output"], "w") do io
+    if parsed_args["output"] == ""
+        filename = "$(splitext(qasm_filename)[1]).json"
+    else
+        filename = parsed_args["output"]
+    end
+    open(filename, "w") do io
         write(io, to_json(tng, parsed_args["indent"]))
     end
 end
