@@ -184,3 +184,6 @@ The following will need to be looked into going forward:
 \subsection{qflex}
 The qflex simulator received a lot of attention for its use in the google quantum supremacy experiments \cite{Villalonga2019} and managed to reach sustained performance of 281 Pfops/s on the Summit supercomputer at Oakridge National Laboratory.... 
 
+\subsection{quimb}
+Quimb is an open source python library designed for quantum information and many-body calculations. It has a submodule, called tensor, which has tools for creating and manipulating tensor networks, including a specialised class for quantum circuits. It uses the library opt_einsum to perform tensor contractions which is agnostic to the backend and can handle NumPy, Dask, PyTorch, Tensorflow, CuPy, Sparse, Theano, JAX, and Autograd arrays. It also has a slepc4py interface for easy distributed linear algebra. Integration of Quimb into the QuantEx project could provide an easy to use user interface. 
+
