@@ -5,7 +5,7 @@ using DataStructures
 using JSON
 
 export load_qasm_as_circuit, load_qasm_as_circuit_from_file, convert_to_tensor_network_graph
-export TensorNetworkCircuit, to_json, from_json
+export TensorNetworkCircuit, to_json, tng_from_json
 
 struct TensorNetworkCircuit
     qubits::Integer
@@ -213,11 +213,11 @@ function from_dict(top_level::Dict{String, Any})
 end
 
 """
-    function from_json(json_str::String)
+    function tng_from_json(json_str::String)
 
 Convert a json string to a tensor network circuit struct
 """
-function from_json(json_str::String)
+function tng_from_json(json_str::String)
     dict = JSON.parse(json_str)
     from_dict(dict)
 end
