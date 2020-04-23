@@ -1,48 +1,40 @@
-import Base: ==
+import Random.shuffle
+
+export random_contraction_path
+export contraction_path_to_json, contraction_path_from_json
 
 
 
-struct ContractionPlan
-    edges::Array{Array{Int64, 1}, 1}
+function random_contraction_path(network::TensorNetworkCircuit)
+    path = edges(network)
+    shuffle(path)
 end
 
-export ContractionPlan, simple_contraction_plan, to_json, contraction_plan_from_json
+# function cost_flops(network, path)
+# end
+#
+# function cost_max_memory(network, path)
+# end
+#
+# function find_contraction_plan(network, cost_function)
+# end
+
+
 
 """
-    function ==(a::ContractionPlan, b::ContractionPlan)
-
-Compare two instances of contraction plan
-"""
-function ==(a::ContractionPlan, b::ContractionPlan)
-    a.edges == b.edges
-end
-
-"""
-    function simple_contraction_plan(tng::TensorNetworkCircuit)
-
-Function to create simple contraction plan starting from inputs
-"""
-function simple_contraction_plan(tng::TensorNetworkCircuit)
-    contraction_plan = [[e.src, e.dst] for e in edges(tng.graph) if get_prop(tng.graph, e.dst, :type) != "output"]
-    out_edges = [[e.src, e.dst] for e in edges(tng.graph) if get_prop(tng.graph, e.dst, :type) == "output"]
-    ContractionPlan(vcat(contraction_plan, out_edges))
-end
-
-"""
-    function to_json(plan::Array)
+    function contraction_path_to_json(plan::Array)
 
 Function to serialise the contraction plan to json format
 """
-function to_json(plan::ContractionPlan)
-    JSON.json(plan.edges)
+function contraction_path_to_json(path::Array{<:Array{<:Integer, 1}, 1})
+    JSON.json(path)
 end
 
 """
-    function contraction_plan_from_json(str::String)
+    function contraction_path_from_json(str::String)
 
 Function to deserialize the contraction plan from a json string
 """
-function contraction_plan_from_json(str::String)
-    edges = JSON.parse(str)
-    ContractionPlan(convert(Array{Array{Int64, 1}, 1}, edges))
+function contraction_path_from_json(str::String)
+    path = convert(Array{Array{Int, 1}, 1}, JSON.parse(str))
 end
