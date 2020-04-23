@@ -1,89 +1,140 @@
 using PyCall
-using LightGraphs
-using MetaGraphs
-using DataStructures
 using JSON
+using DataStructures
 
-export load_qasm_as_circuit, load_qasm_as_circuit_from_file, convert_to_tensor_network_graph
-export TensorNetworkCircuit, to_json, tng_from_json
+export TensorNetworkCircuit, Node, add_gate!, edges
+export load_qasm_as_circuit_from_file, load_qasm_as_circuit
+export convert_qiskit_circ_to_network
+export to_dict, from_dict, network_to_json, network_from_json
+
+
+
+struct Node
+    indices::Array{Symbol, 1}
+    data::Array{<:Number}
+end
+
+"""
+    function Node(data::Array{Number})
+
+Outer constructor to create an instance of Node with the given data and no
+index labels
+"""
+function Node(data::Array{<:Number})
+    Node(Array{Symbol, 1}(), data)
+end
 
 struct TensorNetworkCircuit
-    qubits::Integer
-    graph::MetaDiGraph
-    inputs::Array{Integer, 1}
-    outputs::Array{Integer, 1}
+    output_qubits::Array{Node, 1}
+    nodes::Array{Node, 1}
+    index_map::Dict{Symbol, Array{<:Integer, 1}}
 end
 
 """
     function TensorNetworkCircuit(qubits::Integer)
 
-Outer constructor to create an instance of TensorNetworkCircuit
+Outer constructor to create an instance of TensorNetworkCircuit for an empty
+circuit with the given number of qubits.
 """
 function TensorNetworkCircuit(qubits::Integer)
-    graph = MetaDiGraph(qubits)
-    # add input nodes
-    inputs = collect(1:qubits)
-    for i = 1:qubits
-        set_props!(graph, i, Dict(:qubits => [i],
-                                  :indices => [1],
-                                  :dims => [2],
-                                  :data => [1., 0.],
-                                  :type => "input",
-                                  :data_order => "col"))
+
+    # Create labels for edges of the network connecting input to output qubits
+    labels = [Symbol("ind_", i) for i in 1:qubits]
+
+    # Create Nodes for the input and output qubits
+    in_qubits = [Node([labels[i]], [1.,0.]) for i in 1:qubits]
+    out_qubits = [Node([labels[i]], [1.,0.]) for i in 1:qubits]
+
+    # Create dictionary map from index label to node positions
+    index_map = Dict{Symbol, Array{<:Integer, 1}}()
+    for i in 1:qubits
+        index_map[labels[i]] = [i, i+qubits]
     end
 
-    # add output nodes
-    outputs = collect((qubits + 1):(qubits * 2))
-    for i = 1:qubits
-        add_vertex!(graph)
-        set_props!(graph, i + qubits, Dict(:qubits => [i + qubits],
-                                  :indices => [1],
-                                  :dims => [2],
-                                  :data => [1., 0.],
-                                  :type => "output",
-                                  :data_order => "col"))
-        # add edge from input to output
-        add_edge!(graph, i, i + qubits)
-        set_prop!(graph, i, i + qubits, :indices, [1, 1])
-    end
-    TensorNetworkCircuit(qubits, graph, inputs, outputs)
+    # Create the tensor network
+    TensorNetworkCircuit(out_qubits, [in_qubits; out_qubits], index_map)
 end
 
+
+
 """
-    function add_gate!(tng::TensorNetworkCircuit, gate::Array{ComplexF64, 2}, qubits::Array{Integer, 1})
+    function add_gate!(network::TensorNetworkCircuit,
+                       gate::Node,
+                       targetqubits::Array{Integer, 1})
 
-Add gate with matrix op given to circuit
+Add a node to the tensor network for the given gate acting on the given quibits
 """
-function add_gate!(tng::TensorNetworkCircuit, gate::Array{ComplexF64, 2}, qubits::Array{T, 1}) where T <: Integer
-    # add a vertex for this gate
-    add_vertex!(tng.graph)
-    vertex_id = length(vertices(tng.graph))
+function add_gate!(network::TensorNetworkCircuit,
+                   gate::Node,
+                   target_qubits::Array{<:Integer,1})
 
-    # prepare property values
-    props = Dict{Symbol, Any}()
-    props[:qubits] = qubits
-    props[:indices] = collect(1:length(qubits)*2)
-    props[:dims] = collect([2 for i = 1:length(qubits)*2])
-    props[:data] = reshape(gate, prod(size(gate)))
-    props[:type] = "gate"
-    props[:data_order] = "col"
+    # Create an array of qubits the gate acts on (array of Nodes)
+    targets = [network.output_qubits[i] for i in target_qubits]
 
-    set_props!(tng.graph, vertex_id, props)
+    # Create index labels for the new edges connecting the gate to the output
+    # qubits (labels) and an array of index labels for the gate itself (indices)
+    ind_num = length(keys(network.index_map))
+    labels = [Symbol("ind_", i) for i in (ind_num+1):(ind_num+length(targets))]
+    old_indices = [target.indices for target in targets]
+    old_indices = reduce(vcat, old_indices)
+    indices = vcat(old_indices, labels)
 
-    for (i, qubit) in enumerate(qubits)
-        qubit_index = qubit + 1
-        output_node = tng.outputs[qubit_index]
-        from_node = inneighbors(tng.graph, output_node)[1]
-        edge_indices = get_prop(tng.graph, from_node, output_node, :indices)
-        rem_edge!(tng.graph, from_node, output_node)
+    # Set the new index labels for the new gate
+    append!(gate.indices, indices)
 
-        add_edge!(tng.graph, from_node, vertex_id)
-        set_prop!(tng.graph, from_node, vertex_id, :indices, [edge_indices[1], i])
+    # Relabel the target qubits so that they're contracted with the new gate
+    for i in 1:length(targets)
+        targets[i].indices[1] = labels[i]
+    end
 
-        add_edge!(tng.graph, vertex_id, output_node)
-        set_prop!(tng.graph, vertex_id, output_node, :indices, [length(qubits) + i, edge_indices[2]])
+    # Add the gate to the list of nodes
+    append!(network.nodes, [gate])
+
+    # Update the index_map dictionary with the new labels and gate
+    for (old_index, new_index, target) in zip(old_indices, labels, targets)
+
+        # Get the positions of the tensor being relabeled and the new gate
+        tensor_pair = network.index_map[old_index]
+        target_position = tensor_pair[2]
+        gate_position = length(network.nodes)
+
+        # Replace the position index of the old target with that of the new gate
+        tensor_pair[2] = gate_position
+
+        # Append the positions of the tensors with the new label to index_map
+        network.index_map[new_index] = [gate_position, target_position]
     end
 end
+
+
+
+"""
+    function edges(network::TensorNetworkCircuit)
+
+Return an array of pairs of integers representing the edges of the tensor
+network. The integers are the position indices of the nodes connected by an edge
+in network.nodes
+"""
+function edges(network::TensorNetworkCircuit)
+    # An empty array to hold the edges
+    edge_list = Array{Array{Int, 1}, 1}()
+
+    # Loop over all index labels
+    for edge_label in keys(network.index_map)
+        # Get the pair of nodes which have the index label "edge_label"
+        edge = network.index_map[edge_label]
+
+        # If the pair isn't already in the array then append it.
+        # This avoids multiply appending node pairs which have more than one
+        # edge connecting them
+        if ! (edge in edge_list)
+            append!(edge_list, [edge])
+        end
+    end
+    return edge_list
+end
+
+
 
 """
     function load_qasm_as_circuit_from_file(qasm_path::String)
@@ -109,18 +160,21 @@ function load_qasm_as_circuit(qasm_str::String)
     return qiskit.QuantumCircuit.from_qasm_str(qasm_str)
 end
 
-"""
-    function convert_to_tensor_network_graph(circ)
 
-Given a qiskit circuit, convert to a tensor network graph
+
 """
-function convert_to_tensor_network_graph(circ)
+    function convert_qiskit_circ_to_network(circ)
+
+Convert the given a qiskit circuit to a tensor network
+"""
+function convert_qiskit_circ_to_network(circ)
     transpiler = pyimport("qiskit.transpiler")
     passes = pyimport("qiskit.transpiler.passes")
+    qi = pyimport("qiskit.quantum_info")
 
     coupling = [[i-1, i] for i = 1:circ.n_qubits]
-
-    coupling_map = transpiler.CouplingMap(PyCall.array2py([PyCall.array2py(x) for x in coupling]))
+    coupling_map = transpiler.CouplingMap(
+                   PyCall.array2py([PyCall.array2py(x) for x in coupling]))
 
     pass = passes.BasicSwap(coupling_map=coupling_map)
     # pass = passes.LookaheadSwap(coupling_map=coupling_map)
@@ -130,49 +184,76 @@ function convert_to_tensor_network_graph(circ)
 
     tng = TensorNetworkCircuit(transpiled_circ.n_qubits)
     for gate in transpiled_circ.data
-        add_gate!(tng, gate[1].to_matrix(), [x.index for x in gate[2]])
+        # Need to add 1 to index when converting from python to julia indexing
+        target_qubits = [target.index+1 for target in gate[2]]
+        dims = [2 for i = 1:2*length(target_qubits)]
+        data = reshape(qi.Operator(gate[1]).data, dims...)
+        gate_node = Node(Array{Symbol, 1}(), data)
+        add_gate!(tng, gate_node, target_qubits)
     end
 
     tng
 end
 
-"""
-    function to_dict(tng::TensorNetworkCircuit)
 
-Convert a nested dictionary from a tensor network circuit struct
+
 """
-function to_dict(tng::TensorNetworkCircuit)
+    function to_dict(network::TensorNetworkCircuit)
+
+Convert a tensor network to a nested dictionary
+"""
+function to_dict(network::TensorNetworkCircuit)
     top_level = OrderedDict()
-    top_level["inputs"] = tng.inputs
-    top_level["outputs"] = tng.outputs
+    top_level["num_qubits"] = length(network.output_qubits)
+    top_level["index_map"] = Dict(String(k)=>v
+                                for (k,v) in pairs(network.index_map))
 
     top_level["nodes"] = OrderedDict{Int64, Any}()
     nodes_dict = top_level["nodes"]
-    for node in vertices(tng.graph)
-        nodes_dict[node] = deepcopy(props(tng.graph, node))
-        data = nodes_dict[node][:data]
-        nodes_dict[node][:data_re] = reshape(real.(data), prod(size(data)))
-        nodes_dict[node][:data_im] = reshape(imag.(data), prod(size(data)))
-        delete!(nodes_dict[node], :data)
-    end
-
-    top_level["edges"] = OrderedDict{Int64, Any}()
-    edges_dict = top_level["edges"]
-    for (i, edge) in enumerate(edges(tng.graph))
-        edges_dict[i] = props(tng.graph, edge)
-        edges_dict[i][:src] = edge.src
-        edges_dict[i][:dst] = edge.dst
+    for (n,node) in enumerate(network.nodes)
+        nodes_dict[n] = Dict{Symbol, Any}(:labels=>node.indices)
+        nodes_dict[n][:dims] = size(node.data)
+        nodes_dict[n][:data_re] = reshape(real.(node.data), length(node.data))
+        nodes_dict[n][:data_im] = reshape(imag.(node.data), length(node.data))
     end
 
     top_level
 end
 
 """
-    function to_json(tng::TensorNetworkCircuit)
+    function from_dict(top_level::Dict{String, Any})
 
-Convert a nested dictionary from a tensor network circuit struct
+Convert a dictionary to a tensor network
 """
-function to_json(tng::TensorNetworkCircuit, indent::Integer=0)
+function from_dict(top_level::Dict{String, Any})
+    # Get the index map and convert it to the right type
+    index_map = Dict(Symbol(k) => Array{Int, 1}(v)
+                     for (k,v) in pairs(top_level["index_map"]))
+
+    nodes_dict = top_level["nodes"]
+    nodes = Array{Node, 1}(undef, length(nodes_dict))
+
+    for i = 1:length(nodes_dict)
+        indices = Symbol.(nodes_dict["$i"]["labels"])
+        data = nodes_dict["$i"]["data_re"] .+ nodes_dict["$i"]["data_im"].*1im
+        data = reshape(data, nodes_dict["$i"]["dims"]...)
+        nodes[i] = Node(indices, data)
+    end
+
+    num_qubits = top_level["num_qubits"]
+    output = [nodes[i] for i in num_qubits+1:2*num_qubits]
+
+    TensorNetworkCircuit(output, nodes, index_map)
+end
+
+
+
+"""
+    function network_to_json(tng::TensorNetworkCircuit)
+
+Convert a tensor network to a json string
+"""
+function network_to_json(tng::TensorNetworkCircuit, indent::Integer=0)
     dict = to_dict(tng)
     if indent == 0
         return JSON.json(dict)
@@ -182,42 +263,11 @@ function to_json(tng::TensorNetworkCircuit, indent::Integer=0)
 end
 
 """
-    function from_dict(top_level::Dict{String, Any})
+    function network_from_json(json_str::String)
 
-Convert a dictionary to a tensor network circuit graph
+Convert a json string to a tensor network
 """
-function from_dict(top_level::Dict{String, Any})
-    nodes = top_level["nodes"]
-
-    graph = MetaDiGraph(length(nodes))
-    for i = 1:length(nodes)
-        node_dict = nodes["$(i)"]
-        set_prop!(graph, i, :indices, convert(Array{Int64, 1}, node_dict["indices"]))
-        set_prop!(graph, i, :dims, convert(Array{Int64, 1}, node_dict["dims"]))
-        set_prop!(graph, i, :type, node_dict["type"])
-        set_prop!(graph, i, :data_order, node_dict["data_order"])
-        set_prop!(graph, i, :data, node_dict["data_re"] .+ node_dict["data_im"] .* 1im)
-        set_prop!(graph, i, :qubits, convert(Array{Int64, 1}, node_dict["qubits"]))
-    end
-
-    edges = top_level["edges"]
-    for i = 1:length(edges)
-        edge = edges["$(i)"]
-        src, dst = edge["src"], edge["dst"]
-        add_edge!(graph, src, dst)
-        set_prop!(graph, src, dst, :indices, convert(Array{Int64, 1}, edge["indices"]))
-        set_prop!(graph, src, dst, :src, src)
-        set_prop!(graph, src, dst, :dst, dst)
-    end
-    TensorNetworkCircuit(length(top_level["inputs"]), graph, top_level["inputs"], top_level["outputs"])
-end
-
-"""
-    function tng_from_json(json_str::String)
-
-Convert a json string to a tensor network circuit struct
-"""
-function tng_from_json(json_str::String)
+function network_from_json(json_str::String)
     dict = JSON.parse(json_str)
     from_dict(dict)
 end
