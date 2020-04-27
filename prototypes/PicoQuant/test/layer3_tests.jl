@@ -9,7 +9,7 @@
 
     circ = load_qasm_as_circuit(qasm_str)
     tng = convert_qiskit_circ_to_network(circ)
-    tng_json = network_to_json(tng)
+    tng_json = to_json(tng)
 
     @test begin
         circ.n_qubits == 3
@@ -21,7 +21,7 @@
 
     @test begin
         # test conversion to json and back maintains graph
-        tng_to_json_from_json = network_to_json(network_from_json(tng_json))
+        tng_to_json_from_json = to_json(network_from_json(tng_json))
         tng_to_json_from_json == tng_json
     end
 end
@@ -33,13 +33,13 @@ end
 
     @test begin
         # Check if tn has the correct number of nodes
-        length(tn.nodes) == 6
+        length(tn.nodes) == 0
     end
 
-    hadamard = Node([1 1; 1 -1]./sqrt(2))
+    hadamard = [1 1; 1 -1]./sqrt(2)
     add_gate!(tn, hadamard, [1])
     @test begin
-        length(tn.nodes) == 7
+        length(tn.nodes) == 1
     end
 
     @test begin

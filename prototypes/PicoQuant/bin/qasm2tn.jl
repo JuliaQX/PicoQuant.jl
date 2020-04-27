@@ -10,7 +10,7 @@ using ArgParse
 
 Parse command line options and return argument dictionary
 """
-function parse_commandline()
+function parse_commandline(ARGS)
     s = ArgParseSettings()
         @add_arg_table! s begin
             "--qasm", "-q"
@@ -25,17 +25,16 @@ function parse_commandline()
                 arg_type = Int
                 default = 0
         end
-        return parse_args(s)
+        return parse_args(ARGS,s)
 end
 
-
-function main()
-    parsed_args = parse_commandline()
+function main(ARGS)
+    parsed_args = parse_commandline(ARGS)
 
     qasm_filename = parsed_args["qasm"]
     circuit = load_qasm_as_circuit_from_file(qasm_filename)
 
-    tng = convert_to_tensor_network_graph(circuit)
+    tng = convert_qiskit_circ_to_network(circuit)
 
     if parsed_args["output"] == ""
         filename = "$(splitext(qasm_filename)[1]).json"
@@ -47,4 +46,8 @@ function main()
     end
 end
 
-main()
+
+
+if abspath(PROGRAM_FILE) == @__FILE__
+    main(ARGS)
+end

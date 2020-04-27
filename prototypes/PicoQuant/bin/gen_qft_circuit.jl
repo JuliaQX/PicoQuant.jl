@@ -10,7 +10,7 @@ using ArgParse
 
 Parse command line options and return argument dictionary
 """
-function parse_commandline()
+function parse_commandline(ARGS)
     s = ArgParseSettings()
         @add_arg_table! s begin
             "--number-qubits", "-n"
@@ -31,9 +31,8 @@ function parse_commandline()
                 help = "Use qiskit's inbuilt QFT class instead of constructing circuit manually "
                 action = :store_true
         end
-        return parse_args(s)
+        return parse_args(ARGS, s)
 end
-
 
 """
     function create_qft_circuit(qubits::Integer)
@@ -66,8 +65,8 @@ function create_qft_circuit(qubits::Integer, qiskit_generated::Bool=false)
     circ
 end
 
-function main()
-    parsed_args = parse_commandline()
+function main(ARGS)
+    parsed_args = parse_commandline(ARGS)
 
     qubits = parsed_args["number-qubits"]
 
@@ -95,4 +94,8 @@ function main()
 
 end
 
-main()
+
+
+if abspath(PROGRAM_FILE) == @__FILE__
+    main(ARGS)
+end
