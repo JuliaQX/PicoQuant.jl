@@ -9,33 +9,34 @@
 
     circ = load_qasm_as_circuit(qasm_str)
     tng = convert_qiskit_circ_to_network(circ)
-    path = random_contraction_path(tng)
+    plan = random_contraction_plan(tng)
 
-    # Is the length of the path equal the number of edges in the network?
-    @test length(path) == 8
+    # Is the length of the plan equal the number of closed edges in the network?
+    @test length(plan) == 2
 
     # Are there no edges connecting a node to itself?
     @test begin
         no_self_connections = true
-        for edge in path
-            no_self_connections = no_self_connections && length(Set(edge)) == 2
+        for edge_label in plan
+            edge = tng.edges[edge_label]
+            # if edge ends not null
+            if !(edge.src == edge.dst == nothing)
+                if edge.src == edge.dst
+                    no_self_connections = false
+                end
+            end
         end
         no_self_connections
     end
 
-    # Are there no repeated edges?
+    # Are there no repeated edges in the plan?
     @test begin
-        no_repeats = true
-        for edge in path
-            path_edges = [Set(edge) for edge in path]
-            no_repeats = no_repeats && length(path) == length(Set(path_edges))
-        end
-        no_repeats
+        length(Set(plan)) == length(plan)
     end
 
-    # Test loading and saving path as json string
+    # Test loading and saving plan as json string
     @test begin
-        path_json = contraction_path_to_json(path)
-        path == contraction_path_from_json(path_json)
+        plan_json = contraction_plan_to_json(plan)
+        plan == contraction_plan_from_json(plan_json)
     end
 end

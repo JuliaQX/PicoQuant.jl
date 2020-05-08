@@ -1,76 +1,105 @@
 export contract_edge!, contract_network!
 
+using TensorOperations
+
 """
     function contract_edge!(network::TensorNetworkCircuit,
-                            A::Integer, B::Integer)
+                            A::Symbol, B::Symbol)
 
-Contract the edge of the give tensor network that connects the tensor at
-position A to the tensor at position B
+Contract the edges that connect nodes A and B
 """
-function contract_edge!(network::TensorNetworkCircuit, A_position, B_position)
-    # Get the tensors being contracted and denote them A and B
-    A = network.nodes[A_position]
-    B = network.nodes[B_position]
-
-    # Create an array of index labels for the new node
-    common_indices = intersect(A.indices,B.indices)
-    lft_indices = setdiff(A.indices, common_indices)
-    rgt_indices = setdiff(B.indices, common_indices)
-    new_indices = union(lft_indices, rgt_indices)
-
-    # Find the index permutation after the common indices in A have been moved
-    # to the right for contraction
-    ind_order_A = [findfirst(x->x==ind, A.indices)
-                   for ind in [lft_indices; common_indices]]
-
-    # Find the index permutation after the common indices in B have been moved
-    # to the left for contraction
-    ind_order_B = [findfirst(x->x==ind, B.indices)
-                   for ind in [common_indices; rgt_indices]]
-
-    # Permute the A and B tensors according to the shuffled index labels
-    if length(ind_order_A) > 0 && length(ind_order_B) > 0
-        A.data[:] = permutedims(A.data, ind_order_A)[:]
-        B.data[:] = permutedims(B.data, ind_order_B)[:]
+function contract_edge!(network::TensorNetworkCircuit,
+                        A_label::Symbol,
+                        B_label::Symbol)
+    # Should only contract different tensors so skip contraction if A = B
+    if A_label == B_label
+        return nothing
     end
 
-    # Reshape the A and B tensors for matrix multiplication.
-    m = length(lft_indices); i = length(common_indices); n = length(rgt_indices)
-    A_data = reshape(A.data, 2^m, 2^i)
-    B_data = reshape(B.data, 2^i, 2^n)
+    # Get the tensors being contracted and denote them A and B
+    A = network.nodes[A_label]
+    B = network.nodes[B_label]
 
-    # Contract A and B and reshape the result (assuming all bond dim = 2)
-    data = A_data * B_data
-    data = reshape(data, 2*Int.(ones(length(new_indices)))...)
+    # Create an array of index labels for the new node
+    common_indices = intersect(A.indices, B.indices)
+    remaining_indices_A = setdiff(A.indices, common_indices)
+    remaining_indices_B = setdiff(B.indices, common_indices)
+    remaining_indices = union(remaining_indices_A, remaining_indices_B)
 
-    # Create a new Node for the contracted tensor
-    new_node = Node(new_indices, data)
+    common_index_map = Dict([(x[2], x[1]) for x in enumerate(common_indices)])
+    remaining_indices_map = Dict([(x[2], -x[1]) for x
+                                    in enumerate(remaining_indices)])
+    index_map = merge(common_index_map, remaining_indices_map)
+    A_ncon_indices = [index_map[x] for x in A.indices]
+    B_ncon_indices = [index_map[x] for x in B.indices]
 
-    # Replace tensors A and B in the network with the new tensor AB
-    positions = findall(x->x==A || x==B, network.nodes)
-    for i in positions
-        network.nodes[i] = new_node
+    # contract the tensors
+    C_data = ncon((A.data, B.data), (A_ncon_indices, B_ncon_indices))
+    if typeof(C_data) <: Number
+        C_data = [C_data]
+    end
+
+    # create the new node
+    C = Node(remaining_indices, C_data)
+    C_label = new_label!(network, "node")
+    network.nodes[C_label] = C
+
+    # remove contracted edges
+    for index in common_indices
+        delete!(network.edges, index)
+    end
+
+    # replumb existing edges to point to new node
+    # TODO: might become time consuming for large networks
+    for index in remaining_indices
+        e = network.edges[index]
+        if e.src in [A_label, B_label]
+            e.src = C_label
+        elseif e.dst in [A_label, B_label]
+            e.dst = C_label
+        end
+    end
+
+    # delete the nodes that were contracted
+    delete!(network.nodes, A_label)
+    delete!(network.nodes, B_label)
+end
+
+"""
+    function contract_edge!(network::TensorNetworkCircuit,
+                            edge::Symbol)
+
+Contract the edge with given label
+"""
+function contract_edge!(network::TensorNetworkCircuit,
+                        edge::Symbol)
+    if edge in keys(network.edges)
+        e = network.edges[edge]
+        contract_edge!(network, e.src, e.dst)
     end
 end
 
 """
     function contract_network(network::TensorNetworkCircuit,
-                              path::Array{Array{Int, 1}, 1})
+                              plan::Array{Array{Int, 1}, 1})
 
-Contract the network according to the provided contraction path
+Contract the network according to the provided contraction plan
 """
 function contract_network!(network::TensorNetworkCircuit,
-                           path::Array{<:Array{<:Integer, 1}, 1})
-    # Loop through the path and contract each edge in sequence
-    for edge in path
-        contract_edge!(network, edge[1], edge[2])
+                           plan::Array{Symbol, 1})
+    # Loop through the plan and contract each edge in sequence
+    for edge in plan
+        # sometimes edges get contracted ahead of time if connecting two
+        # tensors being contracted
+        if edge in keys(network.edges)
+            contract_edge!(network, edge)
+        end
     end
 
     # Contract disjoint pieces of the network, if any
-    num_qubits = length(network.output_qubits)
-    for i = 2:num_qubits
-        if network.nodes[1] != network.nodes[i]
-            contract_edge!(network, 1, i)
-        end
+    while length(network.nodes) > 1
+        n1, state = iterate(network.nodes)
+        n2, _ = iterate(network.nodes, state)
+        contract_edge!(network, n1.first, n2.first)
     end
 end

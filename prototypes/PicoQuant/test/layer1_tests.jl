@@ -9,16 +9,20 @@
 
     circ = load_qasm_as_circuit(qasm_str)
     tng = convert_qiskit_circ_to_network(circ)
-    path = random_contraction_path(tng)
-    contract_network!(tng, path)
+    add_input!(tng, "000")
+    add_output!(tng, "000")
+    plan = random_contraction_plan(tng)
+    contract_network!(tng, plan)
 
     # Is there only one node left after the contraction?
     @test begin
-        all_equal = true
-        for i = 2:length(tng.nodes)
-            all_eual = all_equal && tng.nodes[1] == tng.nodes[i]
-        end
-        all_equal
+        length(tng.nodes) == 1
+    end
+
+    # Check if the correct amplitube was computed
+    @test begin
+        node, _ = iterate(tng.nodes)
+        node.second.data[1] ≈ 1/sqrt(2)
     end
 
     # Create a network which will be disjoint when only edges are contracted
@@ -30,15 +34,13 @@
 
     circ = load_qasm_as_circuit(qasm_str)
     tng = convert_qiskit_circ_to_network(circ)
-    path = random_contraction_path(tng)
-    contract_network!(tng, path)
+    add_input!(tng, "00")
+    add_output!(tng, "00")
+    plan = random_contraction_plan(tng)
+    contract_network!(tng, plan)
 
-    # Is there only one node left after the contraction?
+    # Is there only one node left in nodes array after the contraction?
     @test begin
-        all_equal = true
-        for i = 2:length(tng.nodes)
-            all_eual = all_equal && tng.nodes[1] == tng.nodes[i]
-        end
-        all_equal
+        length(tng.nodes) == 1
     end
 end
