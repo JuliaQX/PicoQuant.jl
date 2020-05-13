@@ -356,5 +356,3 @@ function network_from_json(json_str::String)
     dict = JSON.parse(json_str, dicttype=OrderedDict)
     network_from_dict(dict)
 end
-
-# function

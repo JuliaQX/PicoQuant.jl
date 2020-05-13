@@ -27,8 +27,6 @@
 end
 
 @testset "Test tensor network data structure" begin
-    # The following are new tests that weren't in the original test set
-    # for layer 3
     tn = TensorNetworkCircuit(3)
 
     @test begin
