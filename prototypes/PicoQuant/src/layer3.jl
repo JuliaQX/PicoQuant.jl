@@ -1,6 +1,7 @@
 using PyCall
 using JSON
 using DataStructures
+using LinearAlgebra
 
 export TensorNetworkCircuit
 export Node, Edge, add_gate!, edges
@@ -9,6 +10,9 @@ export load_qasm_as_circuit_from_file, load_qasm_as_circuit
 export convert_qiskit_circ_to_network
 export to_dict, to_json, network_from_dict, edge_from_dict, node_from_dict
 export network_from_json
+export inneighbours, outneighbours, virtualneighbours, neighbours
+export inedges, outedges
+export decompose_tensor!
 
 # *************************************************************************** #
 #           Tensor network circuit data structure and functions
@@ -36,8 +40,13 @@ end
 mutable struct Edge
     src::Union{Symbol, Nothing}
     dst::Union{Symbol, Nothing}
-    Edge(a::Union{Symbol, Nothing}, b::Union{Symbol, Nothing}) = new(a, b)
-    Edge() = new(nothing, nothing)
+    qubit::Union{Int64, Nothing}
+    virtual::Bool
+    Edge(a::Union{Symbol, Nothing},
+         b::Union{Symbol, Nothing},
+         qubit::Union{Integer, Nothing},
+         virtual::Bool=false) = new(a, b, qubit, virtual)
+    Edge() = new(nothing, nothing, nothing, false)
 end
 
 "Struct for tensor network graph of a circuit"
@@ -74,7 +83,7 @@ function TensorNetworkCircuit(qubits::Integer)
     # Create dictionary map from index label to node positions
     edges = OrderedDict{Symbol, Edge}()
     for i in 1:qubits
-        edges[index_labels[i]] = Edge()
+        edges[index_labels[i]] = Edge(nothing, nothing, i, false)
     end
 
     input_indices = index_labels
@@ -104,13 +113,15 @@ end
 """
     function add_gate!(network::TensorNetworkCircuit,
                        gate_data::Array{<:Number},
-                       targetqubits::Array{Integer, 1})
+                       targetqubits::Array{Integer, 1};
+                       decompose::Bool=false)
 
 Add a node to the tensor network for the given gate acting on the given quibits
 """
 function add_gate!(network::TensorNetworkCircuit,
                    gate_data::Array{<:Number},
-                   target_qubits::Array{<:Integer,1})
+                   target_qubits::Array{<:Integer,1};
+                   decompose::Bool=false)
 
     n = length(target_qubits)
     # create new indices for connecting gate to outputs
@@ -128,10 +139,33 @@ function add_gate!(network::TensorNetworkCircuit,
     network.nodes[node_label] = new_node
 
     # remap nodes that edges are connected to
-    for (input_index, output_index) in zip(input_indices, output_indices)
+    for qubit in 1:length(input_indices)
+        input_index = input_indices[qubit]
+        output_index = output_indices[qubit]
         network.edges[output_index] = Edge(node_label,
-                                           network.edges[input_index].dst)
+                                           network.edges[input_index].dst,
+                                           target_qubits[qubit])
+
+        # if there is an output node, we need to update incoming index
+        if network.edges[input_index].dst != nothing
+            out_node = network.nodes[network.edges[input_index].dst]
+            for i in 1:length(out_node.indices)
+                if out_node.indices[i] == input_index
+                    out_node.indices[i] = output_index
+                end
+            end
+        end
         network.edges[input_index].dst = node_label
+    end
+
+    # If we have a gate acting on 2 qubits and have decomposition enabled
+    if n == 2 && decompose
+        return decompose_tensor!(network,
+                                 node_label,
+                                 [input_indices[1], output_indices[1]],
+                                 [input_indices[2], output_indices[2]])
+    else
+        return node_label
     end
 end
 
@@ -157,6 +191,66 @@ function add_output!(network::TensorNetworkCircuit, config::String)
         network.nodes[node_label] = Node([output_index], node_data)
         network.edges[output_index].dst = node_label
     end
+end
+
+function inneighbours(network::TensorNetworkCircuit,
+                      node_label::Symbol)
+    node = network.nodes[node_label]
+    myarray = Array{Symbol, 1}()
+    for index in node.indices
+        edge = network.edges[index]
+        if edge.src != nothing && edge.src != node_label && !edge.virtual
+            push!(myarray, edge.src)
+        end
+    end
+    myarray
+end
+
+function outneighbours(network::TensorNetworkCircuit,
+                       node_label::Symbol)
+    node = network.nodes[node_label]
+    myarray = Array{Symbol, 1}()
+    for index in node.indices
+        edge = network.edges[index]
+        if edge.dst != nothing && edge.dst != node_label && !edge.virtual
+            push!(myarray, edge.dst)
+        end
+    end
+    myarray
+end
+
+function virtualneighbours(network::TensorNetworkCircuit,
+                           node_label::Symbol)
+    node = network.nodes[node_label]
+    myarray = Array{Symbol, 1}()
+    for index in node.indices
+        edge = network.edges[index]
+        if edge.dst != nothing && edge.dst != node_label && edge.virtual
+            push!(myarray, edge.dst)
+        elseif edge.src != nothing && edge.src != node_label && edge.virtual
+            push!(myarray, edge.src)
+        end
+    end
+    myarray
+end
+
+function neighbours(network::TensorNetworkCircuit,
+                    node_label::Symbol)
+    vcat(inneighbours(network, node_label),
+         outneighbours(network, node_label),
+         virtualneighbours(network, node_label))
+end
+
+function inedges(network::TensorNetworkCircuit,
+                 node_label::Symbol)
+    idxs = network.nodes[node_label].indices
+    [x for x in idxs if !network.edges[x].virtual && network.edges[x].dst == node_label]
+end
+
+function outedges(network::TensorNetworkCircuit,
+                  node_label::Symbol)
+    idxs = network.nodes[node_label].indices
+    [x for x in idxs if !network.edges[x].virtual && network.edges[x].src == node_label]
 end
 
 # *************************************************************************** #
@@ -192,7 +286,7 @@ end
 
 Convert the given a qiskit circuit to a tensor network
 """
-function convert_qiskit_circ_to_network(circ)
+function convert_qiskit_circ_to_network(circ; decompose::Bool=false)
     transpiler = pyimport("qiskit.transpiler")
     passes = pyimport("qiskit.transpiler.passes")
     qi = pyimport("qiskit.quantum_info")
@@ -216,7 +310,7 @@ function convert_qiskit_circ_to_network(circ)
             target_qubits = [target.index+1 for target in gate[2]]
             dims = [2 for i = 1:2*length(target_qubits)]
             data = reshape(qi.Operator(gate[1]).data, dims...)
-            add_gate!(tng, data, target_qubits)
+            add_gate!(tng, data, target_qubits, decompose=decompose)
         end
     end
 
@@ -233,7 +327,8 @@ end
 Function to convert an edge instance to a serialisable dictionary
 """
 function to_dict(edge::Edge)
-    Dict("src" => edge.src, "dst" => edge.dst)
+    Dict("src" => edge.src, "dst" => edge.dst,
+         "virtual" => edge.virtual, "qubit" => edge.qubit)
 end
 
 """
@@ -243,7 +338,9 @@ Function to create an edge instance from a dictionary
 """
 function edge_from_dict(d::AbstractDict)
     Edge((d["src"] == nothing) ? nothing : Symbol(d["src"]),
-         (d["dst"] == nothing) ? nothing : Symbol(d["dst"]))
+         (d["dst"] == nothing) ? nothing : Symbol(d["dst"]),
+         d["qubit"],
+         d["virtual"])
 end
 
 """
@@ -355,4 +452,81 @@ Convert a json string to a tensor network
 function network_from_json(json_str::String)
     dict = JSON.parse(json_str, dicttype=OrderedDict)
     network_from_dict(dict)
+end
+
+"""
+    function decompose_tensor!(tng::TensorNetworkCircuit,
+                               node::Symbol
+                               left_indices::Array{Symbol, 1},
+                               right_indices::Array{Symbol, 1};
+                               threshold::AbstractFloat=1e-15,
+                               left_label::Union{Nothing, Symbol}=nothing,
+                               right_label::Union{Nothing, Symbol}=nothing)
+
+Decompose a tensor into two smaller tensors
+"""
+function decompose_tensor!(tng::TensorNetworkCircuit,
+                           node_label::Symbol,
+                           left_indices::Array{Symbol, 1},
+                           right_indices::Array{Symbol, 1};
+                           threshold::AbstractFloat=1e-15,
+                           left_label::Union{Nothing, Symbol}=nothing,
+                           right_label::Union{Nothing, Symbol}=nothing)
+    node = tng.nodes[node_label]
+
+    index_map = Dict([v => k for (k, v) in enumerate(node.indices)])
+    left_positions = [index_map[x] for x in left_indices]
+    right_positions = [index_map[x] for x in right_indices]
+    dims = size(node.data)
+    left_dims = [dims[x] for x in left_positions]
+    right_dims = [dims[x] for x in right_positions]
+
+    A = permutedims(node.data, vcat(left_positions, right_positions))
+    A = reshape(A, Tuple([prod(left_dims), prod(right_dims)]))
+
+    # Use SVD here but QR could also be used
+    F = svd(A)
+
+    # find number of singular values above the threshold
+    chi = sum(F.S .> threshold)
+    s = sqrt.(F.S[1:chi])
+
+    # assume that singular values and basis of U and V matrices are sorted
+    # in descending order of singular value
+    B = reshape(F.U[:, 1:chi] * Diagonal(s), Tuple(vcat(left_dims, [chi,])))
+    C = reshape(Diagonal(s) * F.Vt[1:chi, :], Tuple(vcat([chi,], right_dims)))
+
+    # plumb these nodes back into the graph and delete the original
+    B_label = (left_label == nothing) ? new_label!(tng, "node") : left_label
+    C_label = (right_label == nothing) ? new_label!(tng, "node") : right_label
+    index_label = new_label!(tng, "index")
+    B_node = Node(vcat(left_indices, [index_label,]), B)
+    C_node = Node(vcat([index_label,], right_indices), C)
+
+    # add the nodes
+    tng.nodes[B_label] = B_node
+    tng.nodes[C_label] = C_node
+
+    # remap edge endpoints
+    for index in left_indices
+        if tng.edges[index].src == node_label
+            tng.edges[index].src = B_label
+        elseif tng.edges[index].dst == node_label
+            tng.edges[index].dst = B_label
+        end
+    end
+    for index in right_indices
+        if tng.edges[index].src == node_label
+            tng.edges[index].src = C_label
+        elseif tng.edges[index].dst == node_label
+            tng.edges[index].dst = C_label
+        end
+    end
+
+    # add new edge
+    tng.edges[index_label] = Edge(B_label, C_label, nothing, true)
+
+    delete!(tng.nodes, node_label)
+
+    (B_label, C_label)
 end

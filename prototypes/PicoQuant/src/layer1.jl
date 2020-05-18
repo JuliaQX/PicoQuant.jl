@@ -17,7 +17,6 @@ it in the dictionary 'tensors'
 function load_tensor!(tensors::Dict{Symbol, Array{<:Number}},
                       tensor_label::String,
                       tensor_data_filename::String)
-
     tensor = Symbol(tensor_label)
     tensors[tensor] = h5open(tensor_data_filename, "r") do file
         read(file, tensor_label)
