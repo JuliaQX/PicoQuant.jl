@@ -4,7 +4,7 @@ using PyCall
 println("Running build.jl for the PicoQuant package.")
 
 # Change that to whatever packages you need.
-const PACKAGES = ["qiskit", "pylatexenc"]
+const PACKAGES = ["qiskit==0.19.2", "pylatexenc==2.1"]
 
 # Use eventual proxy info
 proxy_arg=String[]
