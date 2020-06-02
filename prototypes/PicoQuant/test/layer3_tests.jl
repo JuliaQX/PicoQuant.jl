@@ -10,6 +10,7 @@ using LinearAlgebra
                   cx q[1],q[2];"""
 
     circ = load_qasm_as_circuit(qasm_str)
+    InteractiveBackend()
     tng = convert_qiskit_circ_to_network(circ)
     tng_json = to_json(tng)
 
@@ -37,6 +38,7 @@ end
     end
 
     hadamard = [1 1; 1 -1]./sqrt(2)
+    InteractiveBackend()
     add_gate!(tn, hadamard, [1])
     @test begin
         length(tn.nodes) == 1

@@ -23,17 +23,17 @@ struct Node
     # the indices that the node contains
     indices::Array{Symbol, 1}
     # data tensor
-    data::Array{<:Number}
+    data_label::Symbol
 end
 
 """
-    function Node(data::Array{Number})
+    function Node(data_label::Symbol)
 
-Outer constructor to create an instance of Node with the given data and no
+Outer constructor to create an instance of Node with the given data label and no
 index labels
 """
-function Node(data::Array{<:Number})
-    Node(Array{Symbol, 1}(), data)
+function Node(data_label::Symbol)
+    Node(Array{Symbol, 1}(), data_label)
 end
 
 "Struct to represent an edge"
@@ -135,8 +135,14 @@ function add_gate!(network::TensorNetworkCircuit,
 
     # create a node object for the gate
     node_label = new_label!(network, "node")
-    new_node = Node(vcat(input_indices, output_indices), gate_data)
+    data_label = node_label # Having this equal the node label is redundant
+                            # but thinking this can change when avoiding
+                            # duplication of tensor data
+    new_node = Node(vcat(input_indices, output_indices), data_label)
     network.nodes[node_label] = new_node
+
+    # Save the gate data to the executer
+    save_tensor_data(backend, data_label, gate_data)
 
     # remap nodes that edges are connected to
     for qubit in 1:length(input_indices)
@@ -177,8 +183,14 @@ function add_input!(network::TensorNetworkCircuit, config::String)
     @assert length(config) == network.number_qubits
     for (input_index, config_char) in zip(network.input_qubits, config)
         node_label = new_label!(network, "node")
+        data_label = node_label
+
         node_data = (config_char == '0') ? [1., 0.] : [0., 1.]
-        network.nodes[node_label] = Node([input_index], node_data)
+        network.nodes[node_label] = Node([input_index], data_label)
+
+        # Save the gate data to the executer
+        save_tensor_data(backend, data_label, node_data)
+
         network.edges[input_index].src = node_label
     end
 end
@@ -187,8 +199,14 @@ function add_output!(network::TensorNetworkCircuit, config::String)
     @assert length(config) == network.number_qubits
     for (output_index, config_char) in zip(network.output_qubits, config)
         node_label = new_label!(network, "node")
+        data_label = node_label
+
         node_data = (config_char == '0') ? [1., 0.] : [0., 1.]
-        network.nodes[node_label] = Node([output_index], node_data)
+        network.nodes[node_label] = Node([output_index], data_label)
+
+        # Save the gate data to the executer
+        save_tensor_data(backend, data_label, node_data)
+
         network.edges[output_index].dst = node_label
     end
 end
@@ -350,17 +368,18 @@ Function to serialise node instance to json format
 """
 function to_dict(node::Node)
     node_dict = Dict{String, Any}("indices" => [String(x) for x in node.indices])
-    if ndims(node.data) == 0
-        node_dict["data_re"] = real(node.data)
-        node_dict["data_im"] = imag(node.data)
-        node_dict["data_dims"] = (1, )
-    else
-        node_dict["data_re"] = reshape(real.(node.data),
-                                          length(node.data))
-        node_dict["data_im"] = reshape(imag.(node.data),
-                                          length(node.data))
-        node_dict["data_dims"] = size(node.data)
-    end
+    # if ndims(node.data) == 0
+    #     node_dict["data_re"] = real(node.data)
+    #     node_dict["data_im"] = imag(node.data)
+    #     node_dict["data_dims"] = (1, )
+    # else
+    #     node_dict["data_re"] = reshape(real.(node.data),
+    #                                       length(node.data))
+    #     node_dict["data_im"] = reshape(imag.(node.data),
+    #                                       length(node.data))
+    #     node_dict["data_dims"] = size(node.data)
+    # end
+    node_dict["data_label"] = string(node.data_label)
     node_dict
 end
 
@@ -371,8 +390,9 @@ Function to create a node instance from a json string
 """
 function node_from_dict(d::AbstractDict)
     indices = [Symbol(x) for x in d["indices"]]
-    data = reshape(d["data_re"] + d["data_im"].*1im, Tuple(d["data_dims"]))
-    Node(indices, data)
+    # data = reshape(d["data_re"] + d["data_im"].*1im, Tuple(d["data_dims"]))
+    data_label = Symbol(d["data_label"])
+    Node(indices, data_label)
 end
 
 """

@@ -9,6 +9,7 @@ using TensorOperations, HDF5
 """
     function load_tensor!(tensors::Dict{Symbol, Array{<:Number}},
                           tensor_label::String,
+                          data_label::String,
                           tensor_data_filename::String)
 
 Load tensor data, identified by tensor_label, from a .h5 file and store
@@ -16,10 +17,11 @@ it in the dictionary 'tensors'
 """
 function load_tensor!(tensors::Dict{Symbol, Array{<:Number}},
                       tensor_label::String,
+                      data_label::String,
                       tensor_data_filename::String)
     tensor = Symbol(tensor_label)
     tensors[tensor] = h5open(tensor_data_filename, "r") do file
-        read(file, tensor_label)
+        read(file, data_label)
     end
 end
 
@@ -145,7 +147,7 @@ function execute_dsl_file(dsl_filename::String="contract_network.tl",
             delete_tensor!(tensors, command[2])
 
         elseif command[1] == "tensor"
-            load_tensor!(tensors, command[2], tensor_data_filename)
+            load_tensor!(tensors, command[2], command[3], tensor_data_filename)
 
         elseif command[1] == "save"
             tensor_to_save = command[2]

@@ -10,15 +10,15 @@ using HDF5
                   cx q[1],q[2];"""
 
     circ = load_qasm_as_circuit(qasm_str)
+    DSLWriter()
     tng = convert_qiskit_circ_to_network(circ)
     add_input!(tng, "000")
     add_output!(tng, "000")
     plan = random_contraction_plan(tng)
-    executer = DSLWriter()
 
     try
         # Try executing the dsl commands created by contract_network!().
-        contract_network!(tng, plan, executer)
+        contract_network!(tng, plan)
         execute_dsl_file("contract_network.tl", "tensor_data.h5")
 
         # Check if the correct amplitube was computed

@@ -4,7 +4,7 @@ import Base: push!
 export random_contraction_plan
 export contraction_plan_to_json, contraction_plan_from_json
 export contract_pair!, contract_network!
-export AbstractExecuter, DSLWriter, InteractiveExecuter, push!
+export push!
 export compress_tensor_chain!
 
 using HDF5
@@ -49,45 +49,12 @@ function contraction_plan_from_json(str::String)
 end
 
 # *************************************************************************** #
-#                             Executer types
-# *************************************************************************** #
-
-"Abstract type defining executers which determine the behavior of contract
-functions"
-abstract type AbstractExecuter end
-
-"The dsl writer will get the contract functions to write dsl commands."
-mutable struct DSLWriter <: AbstractExecuter
-    dsl_filename::String
-    tensor_data_filename::String
-    output_data_filename::String
-
-    function DSLWriter(dsl::String="contract_network.tl",
-                       tensor_data="tensor_data.h5"::String,
-                       output::String="")
-        # create empty dsl file
-        close(open(dsl, "w"))
-        new(dsl, tensor_data, output)
-    end
-end
 
 function push!(dsl::DSLWriter, instruction::String)
     open(dsl.dsl_filename, "a") do io
         write(io, instruction * "\n")
     end
 end
-
-"Interactive executer which gets the contract functions to act on tensor data
-in a TensorNetworkCircuit interactively."
-mutable struct InteractiveExecuter <: AbstractExecuter
-    use_gpu::Bool
-    memory_size_mb::Int64
-
-    InteractiveExecuter(use_gpu::Bool=false,
-                        memory_size_mb::Int64=0) = new(use_gpu, memory_size_mb)
-end
-
-# *************************************************************************** #
 #                  Functions to contract a tensor network
 # *************************************************************************** #
 
@@ -131,10 +98,16 @@ function create_ncon_indices(A::Node, B::Node,
     return A_ncon_indices, B_ncon_indices
 end
 
+function contract_network!(network::TensorNetworkCircuit,
+                           plan::Array{Symbol, 1},
+                           output_shape::Union{String, Array{<:Integer, 1}}="")
+    contract_network!(network, plan, backend, output_shape)
+end
+
 """
     function contract_network!(network::TensorNetworkCircuit,
                                plan::Array{Symbol, 1},
-                               executer::DSLWriter,
+                               backend::DSLWriter,
                                output_shape::Union{String, Array{<:Integer, 1}})
 
 Function to write dsl commands describing how to contract the given network
@@ -142,23 +115,24 @@ according to the given contraction plan.
 """
 function contract_network!(network::TensorNetworkCircuit,
                            plan::Array{Symbol, 1},
-                           executer::DSLWriter,
+                           backend::DSLWriter,
                            output_shape::Union{String, Array{<:Integer, 1}}="")
 
-    tensor_data_filename = executer.tensor_data_filename
-    output_data_filename = executer.output_data_filename
+    dsl_filename = backend.dsl_filename
+    tensor_data_filename = backend.tensor_data_filename
+    output_data_filename = backend.output_data_filename
     if output_data_filename == ""
         output_data_filename = tensor_data_filename
     end
 
-    # Write the tensor data contained in the tensor network to a file.
+    # A string to hold all of the generated dsl commands.
+    dsl_script = ""
+
     # Append load commands to the dsl script for each tensor.
-    h5open(tensor_data_filename, "w") do file
-        for (node_label, node) in pairs(network.nodes)
-            node_name = string(node_label)
-            write(file, node_name, node.data)
-            push!(executer, "tensor $node_name")
-        end
+    for (node_label, node) in pairs(network.nodes)
+        node_name = string(node_label)
+        data_label = string(node.data_label)
+        dsl_script *= "tensor $node_name $data_label\n"
     end
 
     # Loop through the plan and contract each edge in sequence
@@ -166,7 +140,7 @@ function contract_network!(network::TensorNetworkCircuit,
         # sometimes edges get contracted ahead of time if connecting two
         # tensors being contracted
         if edge in keys(network.edges)
-            contract_pair!(network, edge, executer)
+            dsl_script *= contract_pair!(network, edge, backend)
         end
     end
 
@@ -174,7 +148,7 @@ function contract_network!(network::TensorNetworkCircuit,
     while length(network.nodes) > 1
         n1, state = iterate(network.nodes)
         n2, _ = iterate(network.nodes, state)
-        contract_pair!(network, n1.first, n2.first, executer)
+        dsl_script *= contract_pair!(network, n1.first, n2.first, backend)
     end
 
     # Reshape the final tensor if a shape is specified by the user.
@@ -194,7 +168,7 @@ end
 """
     function contract_network!(network::TensorNetworkCircuit,
                                plan::Array{Symbol, 1},
-                               executer::InteractiveExecuter,
+                               backend::InteractiveBackend,
                                output_shape::Union{String, Array{<:Integer, 1}})
 
 Function to interactively contract the given network according to the given
@@ -202,7 +176,7 @@ contraction plan.
 """
 function contract_network!(network::TensorNetworkCircuit,
                            plan::Array{Symbol, 1},
-                           executer::InteractiveExecuter,
+                           backend::InteractiveBackend,
                            output_shape::Union{String, Array{<:Integer, 1}}="")
 
     # Loop through the plan and contract each edge in sequence.
@@ -210,7 +184,7 @@ function contract_network!(network::TensorNetworkCircuit,
         # Sometimes edges get contracted ahead of time if connecting two
         # tensors being contracted.
         if edge in keys(network.edges)
-            contract_pair!(network, edge, executer)
+            contract_pair!(network, edge, backend)
         end
     end
 
@@ -218,7 +192,7 @@ function contract_network!(network::TensorNetworkCircuit,
     while length(network.nodes) > 1
         n1, state = iterate(network.nodes)
         n2, _ = iterate(network.nodes, state)
-        contract_pair!(network, n1.first, n2.first, executer)
+        contract_pair!(network, n1.first, n2.first, backend)
     end
 
     # Get the node corresponding to the fully contracted tensor network.
@@ -237,16 +211,16 @@ end
 """
     function contract_pair!(network::TensorNetworkCircuit,
                             edge::Symbol,
-                            executer::AbstractExecuter)
+                            executer::AbstractBackend)
 
 Contract a pair of nodes connected by the given edge.
 """
 function contract_pair!(network::TensorNetworkCircuit,
                         edge::Symbol,
-                        executer::AbstractExecuter)
+                        backend::AbstractBackend)
     if edge in keys(network.edges)
         e = network.edges[edge]
-        return contract_pair!(network, e.src, e.dst, executer)
+        return contract_pair!(network, e.src, e.dst, backend)
     end
 end
 
@@ -254,14 +228,14 @@ end
     function contract_pair!(network::TensorNetworkCircuit,
                             A_label::Symbol,
                             B_label::Symbol,
-                            executer::DSLWriter)
+                            backend::DSLWriter)
 
 Function to create dsl commands which contract the nodes A and B of the network.
 """
 function contract_pair!(network::TensorNetworkCircuit,
                         A_label::Symbol,
                         B_label::Symbol,
-                        executer::DSLWriter)
+                        backend::DSLWriter)
 
     # Should only contract different tensors, so skip contraction if A = B.
     if A_label == B_label
@@ -282,7 +256,7 @@ function contract_pair!(network::TensorNetworkCircuit,
 
     # Create and add the new node to the tensor network.
     C_label = new_label!(network, "node")
-    C = Node(remaining_indices, zeros(0))
+    C = Node(remaining_indices, C_label)
     network.nodes[C_label] = C
 
     # remove contracted edges
@@ -321,14 +295,14 @@ end
     function contract_pair!(network::TensorNetworkCircuit,
                             A_label::Symbol,
                             B_label::Symbol,
-                            executer::InteractiveExecuter)
+                            backend::InteractiveBackend)
 
 Function to interactively contract a pair of nodes A and B.
 """
 function contract_pair!(network::TensorNetworkCircuit,
                         A_label::Symbol,
                         B_label::Symbol,
-                        executer::InteractiveExecuter)
+                        backend::InteractiveBackend)
 
     # Should only contract different tensors, so skip contraction if A = B.
     if A_label == B_label
@@ -350,14 +324,17 @@ function contract_pair!(network::TensorNetworkCircuit,
     # Get the tensor data and create a new label for the tensor created
     # by contracting A and B.
     C_label = new_label!(network, "node")
-    C_data = contract_tensors((A.data, B.data),
+    A_data = backend.tensors[A.data_label]
+    B_data = backend.tensors[B.data_label]
+    C_data = contract_tensors((A_data, B_data),
                               (A_ncon_indices, B_ncon_indices))
     if typeof(C_data) <: Number
         C_data = [C_data]
     end
+    save_tensor_data(backend, C_label, C_data)
 
     # Create and add the new node to the tensor network.
-    C = Node(remaining_indices, C_data)
+    C = Node(remaining_indices, C_label)
     network.nodes[C_label] = C
 
     # remove contracted edges

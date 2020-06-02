@@ -10,6 +10,7 @@ using HDF5
                   cx q[1],q[2];"""
 
     circ = load_qasm_as_circuit(qasm_str)
+    InteractiveBackend()
     tng = convert_qiskit_circ_to_network(circ)
     plan = random_contraction_plan(tng)
 
@@ -54,16 +55,15 @@ end
                   cx q[1],q[2];"""
 
     circ = load_qasm_as_circuit(qasm_str)
+    DSLWriter()
     tng = convert_qiskit_circ_to_network(circ)
     add_input!(tng, "000")
     add_output!(tng, "000")
     plan = random_contraction_plan(tng)
 
-    executer = DSLWriter()
-
     try
         # Test if contract_network creates files with dsl and tensor data.
-        contract_network!(tng, plan, executer)
+        contract_network!(tng, plan)
         @test isfile("contract_network.tl")
         @test isfile("tensor_data.h5")
 
@@ -95,7 +95,7 @@ end
     plan = random_contraction_plan(tng)
 
     try
-        contract_network!(tng, plan, executer, "vector")
+        contract_network!(tng, plan, "vector")
 
         # Is there only one node left in nodes array after the contraction?
         @test begin
@@ -123,6 +123,7 @@ end
     end
 
     # Create the network again to test the interactive executer
+    InteractiveBackend()
     tng = convert_qiskit_circ_to_network(circ)
     add_input!(tng, "00")
     plan = random_contraction_plan(tng)
@@ -132,7 +133,8 @@ end
 
     @test length(tng.nodes) == 1
 
-    result = collect(values(tng.nodes))[1].data
+    result_label = collect(values(tng.nodes))[1].data_label
+    result = PicoQuant.backend.tensors[result_label]
     @test real(result)[1] ≈ 1/2
 end
 
