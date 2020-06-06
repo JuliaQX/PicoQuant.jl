@@ -10,6 +10,7 @@ import MetaGraphs
                   cx q[1],q[2];"""
 
     circ = load_qasm_as_circuit(qasm_str)
+    InteractiveBackend()
     tng = convert_qiskit_circ_to_network(circ)
     add_input!(tng, "000")
     add_output!(tng, "000")

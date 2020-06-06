@@ -1,5 +1,7 @@
 import MetaGraphs
 import LightGraphs
+# import Base: push!
+
 using PicoQuant
 using Statistics
 using GraphPlot
@@ -46,7 +48,7 @@ function create_graph(tng::TensorNetworkCircuit)
                                :locy => locy))
         vertex_map[node] = MetaGraphs.nv(g)
         for edge in outedges(tng, node)
-            push!(input_edges, edge)
+            Base.push!(input_edges, edge)
             index_source_vertex[edge] = MetaGraphs.nv(g)
         end
         virtualbonds = [x for x in tng.nodes[node].indices if tng.edges[x].virtual]

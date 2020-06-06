@@ -1,10 +1,8 @@
 import Random.shuffle
-import Base: push!
 
 export random_contraction_plan
 export contraction_plan_to_json, contraction_plan_from_json
 export contract_pair!, contract_network!
-export push!
 export compress_tensor_chain!
 
 using HDF5
@@ -49,12 +47,6 @@ function contraction_plan_from_json(str::String)
 end
 
 # *************************************************************************** #
-
-function push!(dsl::DSLWriter, instruction::String)
-    open(dsl.dsl_filename, "a") do io
-        write(io, instruction * "\n")
-    end
-end
 #                  Functions to contract a tensor network
 # *************************************************************************** #
 
@@ -125,14 +117,14 @@ function contract_network!(network::TensorNetworkCircuit,
         output_data_filename = tensor_data_filename
     end
 
-    # A string to hold all of the generated dsl commands.
-    dsl_script = ""
+    # # A string to hold all of the generated dsl commands.
+    # dsl_script = ""
 
     # Append load commands to the dsl script for each tensor.
     for (node_label, node) in pairs(network.nodes)
         node_name = string(node_label)
         data_label = string(node.data_label)
-        dsl_script *= "tensor $node_name $data_label\n"
+        push!(backend, "tensor $node_name $data_label")
     end
 
     # Loop through the plan and contract each edge in sequence
@@ -140,7 +132,7 @@ function contract_network!(network::TensorNetworkCircuit,
         # sometimes edges get contracted ahead of time if connecting two
         # tensors being contracted
         if edge in keys(network.edges)
-            dsl_script *= contract_pair!(network, edge, backend)
+            contract_pair!(network, edge, backend)
         end
     end
 
@@ -148,21 +140,25 @@ function contract_network!(network::TensorNetworkCircuit,
     while length(network.nodes) > 1
         n1, state = iterate(network.nodes)
         n2, _ = iterate(network.nodes, state)
-        dsl_script *= contract_pair!(network, n1.first, n2.first, backend)
+        contract_pair!(network, n1.first, n2.first, backend)
     end
 
     # Reshape the final tensor if a shape is specified by the user.
     if output_shape == "vector"
         vector_length = 2^length(network.output_qubits)
-        push!(executer, "reshape node_$(network.counters["node"]) $(vector_length)")
+        command = "reshape node_$(network.counters["node"]) $vector_length"
+        push!(backend, command)
 
     elseif output_shape != ""
-        push!(executer, "reshape node_$(network.counters["node"]) " * join(output_shape, ","))
+        command = "reshape node_$(network.counters["node"]) "
+        command *= join(output_shape, ",")
+        push!(backend, command)
     end
 
     # Add a command to save the contracted the network under the
     # group name 'result'.
-    push!(executer, "save node_$(network.counters["node"]) $output_data_filename result")
+    command = "save node_$(network.counters["node"]) $output_data_filename result"
+    push!(backend, command)
 end
 
 """
@@ -284,10 +280,10 @@ function contract_pair!(network::TensorNetworkCircuit,
     ncon_str = "ncon " * string(C_label) * " "
     ncon_str *= string(A_label) * " " * join(A_ncon_indices, ",") * " "
     ncon_str *= string(B_label) * " " * join(B_ncon_indices, ",")
-    push!(executer, ncon_str)
+    push!(backend, ncon_str)
 
-    push!(executer, "del " * string(A_label))
-    push!(executer, "del " * string(B_label))
+    push!(backend, "del " * string(A_label))
+    push!(backend, "del " * string(B_label))
     C_label
 end
 
@@ -370,8 +366,7 @@ end
 Compress a chain of tensors
 """
 function compress_tensor_chain!(tng::TensorNetworkCircuit,
-                                nodes::Array{Symbol, 1},
-                                executer::AbstractExecuter;
+                                nodes::Array{Symbol, 1};
                                 threshold::AbstractFloat=1e-15)
 
     # forward pass
@@ -382,7 +377,7 @@ function compress_tensor_chain!(tng::TensorNetworkCircuit,
         left_indices = setdiff(left_node.indices, right_node.indices)
         right_indices = setdiff(right_node.indices, left_node.indices)
 
-        combined_node = contract_pair!(tng, nodes[i], nodes[i+1], executer)
+        combined_node = contract_pair!(tng, nodes[i], nodes[i+1], backend)
 
         decompose_tensor!(tng, combined_node, left_indices, right_indices,
                           left_label=nodes[i],
@@ -398,7 +393,7 @@ function compress_tensor_chain!(tng::TensorNetworkCircuit,
         left_indices = setdiff(left_node.indices, right_node.indices)
         right_indices = setdiff(right_node.indices, left_node.indices)
 
-        combined_node = contract_pair!(tng, nodes[i], nodes[i+1], executer)
+        combined_node = contract_pair!(tng, nodes[i], nodes[i+1], backend)
 
         decompose_tensor!(tng, combined_node, left_indices, right_indices,
                           left_label=nodes[i],

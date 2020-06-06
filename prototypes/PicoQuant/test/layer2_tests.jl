@@ -127,9 +127,7 @@ end
     tng = convert_qiskit_circ_to_network(circ)
     add_input!(tng, "00")
     plan = random_contraction_plan(tng)
-
-    executer = InteractiveExecuter()
-    contract_network!(tng, plan, executer)
+    contract_network!(tng, plan)
 
     @test length(tng.nodes) == 1
 
@@ -140,10 +138,10 @@ end
 
 @testset "Test tensor chain compression" begin
     @test begin
+        InteractiveBackend()
         tn = TensorNetworkCircuit(2)
         add_input!(tn, "00")
-        env = InteractiveExecuter()
-        compress_tensor_chain!(tn, collect(keys(tn.nodes)), env)
+        compress_tensor_chain!(tn, collect(keys(tn.nodes)))
         length(tn.nodes) == 2
     end
 
@@ -161,6 +159,7 @@ end
                       cx q[0],q[1];
                       cx q[0],q[1];
                       """
+        InteractiveBackend()
         circ = load_qasm_as_circuit(qasm_str)
         tn = convert_qiskit_circ_to_network(circ)
         add_input!(tn, "0"^2)
@@ -173,14 +172,13 @@ end
                                                 v.src != nothing &&
                                                 v.dst != nothing]
 
-        env = InteractiveExecuter()
         for edge in plan
-              contract_pair!(tn, edge, env)
+              contract_pair!(tn, edge, backend)
         end
 
-        compress_tensor_chain!(tn, [:node_18, :node_19], env)
+        compress_tensor_chain!(tn, [:node_18, :node_19])
 
         idx = findfirst(x -> x == :index_14, tn.nodes[:node_18].indices)
-        size(tn.nodes[:node_18].data)[idx] == 2
+        size(backend.tensors[:node_18])[idx] == 2
     end
 end

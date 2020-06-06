@@ -1,6 +1,7 @@
 
 export AbstractBackend, DSLWriter, InteractiveBackend, save_tensor_data
 export backend
+export push!
 
 backend = nothing
 

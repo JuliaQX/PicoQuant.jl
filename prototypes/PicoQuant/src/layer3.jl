@@ -493,15 +493,16 @@ function decompose_tensor!(tng::TensorNetworkCircuit,
                            left_label::Union{Nothing, Symbol}=nothing,
                            right_label::Union{Nothing, Symbol}=nothing)
     node = tng.nodes[node_label]
+    node_data = backend.tensors[node_label]
 
     index_map = Dict([v => k for (k, v) in enumerate(node.indices)])
     left_positions = [index_map[x] for x in left_indices]
     right_positions = [index_map[x] for x in right_indices]
-    dims = size(node.data)
+    dims = size(node_data)
     left_dims = [dims[x] for x in left_positions]
     right_dims = [dims[x] for x in right_positions]
 
-    A = permutedims(node.data, vcat(left_positions, right_positions))
+    A = permutedims(node_data, vcat(left_positions, right_positions))
     A = reshape(A, Tuple([prod(left_dims), prod(right_dims)]))
 
     # Use SVD here but QR could also be used
@@ -520,12 +521,15 @@ function decompose_tensor!(tng::TensorNetworkCircuit,
     B_label = (left_label == nothing) ? new_label!(tng, "node") : left_label
     C_label = (right_label == nothing) ? new_label!(tng, "node") : right_label
     index_label = new_label!(tng, "index")
-    B_node = Node(vcat(left_indices, [index_label,]), B)
-    C_node = Node(vcat([index_label,], right_indices), C)
+    B_node = Node(vcat(left_indices, [index_label,]), B_label)
+    C_node = Node(vcat([index_label,], right_indices), C_label)
 
     # add the nodes
     tng.nodes[B_label] = B_node
     tng.nodes[C_label] = C_node
+
+    backend.tensors[B_label] = B
+    backend.tensors[C_label] = C
 
     # remap edge endpoints
     for index in left_indices
