@@ -304,30 +304,35 @@ end
 
 Convert the given a qiskit circuit to a tensor network
 """
-function convert_qiskit_circ_to_network(circ; decompose::Bool=false)
+function convert_qiskit_circ_to_network(circ;
+                                        decompose::Bool=false,
+                                        transpile::Bool=true)
     transpiler = pyimport("qiskit.transpiler")
     passes = pyimport("qiskit.transpiler.passes")
     qi = pyimport("qiskit.quantum_info")
     barrier = pyimport("qiskit.extensions.standard.barrier")
 
-    coupling = [[i-1, i] for i = 1:circ.n_qubits]
-    coupling_map = transpiler.CouplingMap(
-                   PyCall.array2py([PyCall.array2py(x) for x in coupling]))
+    if transpile
+        coupling = [[i-1, i] for i = 1:circ.n_qubits]
+        coupling_map = transpiler.CouplingMap(
+                       PyCall.array2py([PyCall.array2py(x) for x in coupling]))
 
-    pass = passes.BasicSwap(coupling_map=coupling_map)
-    # pass = passes.LookaheadSwap(coupling_map=coupling_map)
-    # pass = passes.StochasticSwap(coupling_map=coupling_map)
-    pass_manager = transpiler.PassManager(pass)
-    transpiled_circ = pass_manager.run(circ)
+        pass = passes.BasicSwap(coupling_map=coupling_map)
+        # pass = passes.LookaheadSwap(coupling_map=coupling_map)
+        # pass = passes.StochasticSwap(coupling_map=coupling_map)
+        pass_manager = transpiler.PassManager(pass)
+        circ = pass_manager.run(circ)
+    end
 
-    tng = TensorNetworkCircuit(transpiled_circ.n_qubits)
-    for gate in transpiled_circ.data
+    tng = TensorNetworkCircuit(circ.n_qubits)
+    for gate in circ.data
         # If the gate is a barrier then skip it
         if ! pybuiltin(:isinstance)(gate[1], barrier.Barrier)
             # Need to add 1 to index when converting from python
             target_qubits = [target.index+1 for target in gate[2]]
             dims = [2 for i = 1:2*length(target_qubits)]
-            data = reshape(qi.Operator(gate[1]).data, dims...)
+            data = permutedims(qi.Operator(gate[1]).data, (2, 1))
+            data = reshape(data, dims...)
             add_gate!(tng, data, target_qubits, decompose=decompose)
         end
     end
