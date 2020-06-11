@@ -134,15 +134,15 @@ function add_gate!(network::TensorNetworkCircuit,
     end
 
     # create a node object for the gate
+    # TODO: Having data_label equal the node_label is redundant
+    # but thinking these can differ when avoiding duplication of tensor data.
     node_label = new_label!(network, "node")
-    data_label = node_label # Having this equal the node label is redundant
-                            # but thinking this can change when avoiding
-                            # duplication of tensor data
+    data_label = node_label
     new_node = Node(vcat(input_indices, output_indices), data_label)
     network.nodes[node_label] = new_node
 
     # Save the gate data to the executer
-    save_tensor_data(backend, data_label, gate_data)
+    save_tensor_data(backend, node_label, data_label, gate_data)
 
     # remap nodes that edges are connected to
     for qubit in 1:length(input_indices)
@@ -189,7 +189,7 @@ function add_input!(network::TensorNetworkCircuit, config::String)
         network.nodes[node_label] = Node([input_index], data_label)
 
         # Save the gate data to the executer
-        save_tensor_data(backend, data_label, node_data)
+        save_tensor_data(backend, node_label, data_label, node_data)
 
         network.edges[input_index].src = node_label
     end
@@ -205,7 +205,7 @@ function add_output!(network::TensorNetworkCircuit, config::String)
         network.nodes[node_label] = Node([output_index], data_label)
 
         # Save the gate data to the executer
-        save_tensor_data(backend, data_label, node_data)
+        save_tensor_data(backend, node_label, data_label, node_data)
 
         network.edges[output_index].dst = node_label
     end
@@ -368,17 +368,6 @@ Function to serialise node instance to json format
 """
 function to_dict(node::Node)
     node_dict = Dict{String, Any}("indices" => [String(x) for x in node.indices])
-    # if ndims(node.data) == 0
-    #     node_dict["data_re"] = real(node.data)
-    #     node_dict["data_im"] = imag(node.data)
-    #     node_dict["data_dims"] = (1, )
-    # else
-    #     node_dict["data_re"] = reshape(real.(node.data),
-    #                                       length(node.data))
-    #     node_dict["data_im"] = reshape(imag.(node.data),
-    #                                       length(node.data))
-    #     node_dict["data_dims"] = size(node.data)
-    # end
     node_dict["data_label"] = string(node.data_label)
     node_dict
 end
@@ -390,7 +379,6 @@ Function to create a node instance from a json string
 """
 function node_from_dict(d::AbstractDict)
     indices = [Symbol(x) for x in d["indices"]]
-    # data = reshape(d["data_re"] + d["data_im"].*1im, Tuple(d["data_dims"]))
     data_label = Symbol(d["data_label"])
     Node(indices, data_label)
 end

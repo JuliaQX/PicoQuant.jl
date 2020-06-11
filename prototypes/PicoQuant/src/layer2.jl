@@ -51,20 +51,19 @@ end
 # *************************************************************************** #
 
 """
-    function contract_indices(A::Node, B::Node)
+    function sort_indices(A::Node, B::Node)
 
 This function divides all of the indices of two nodes A and B into two arrays,
-one array for all the indices that are shared between A and B and the second
-array will have all the indices that are not shared.
+one array for all the shared indices between A and B and a second array for all
+the indices that are not shared.
 """
-function contract_indices(A::Node, B::Node)
-    # Create an array of index labels for the new node
+function sort_indices(A::Node, B::Node)
     common_indices = intersect(A.indices, B.indices)
     remaining_indices_A = setdiff(A.indices, common_indices)
     remaining_indices_B = setdiff(B.indices, common_indices)
     uncommon_indices = union(remaining_indices_A, remaining_indices_B)
 
-    return common_indices, uncommon_indices
+    common_indices, uncommon_indices
 end
 
 """
@@ -78,7 +77,8 @@ passed to ncon in order to contract the tensor data associated with A and B.
 function create_ncon_indices(A::Node, B::Node,
                              common_indices::Array{Symbol, 1},
                              uncommon_indices::Array{Symbol, 1})
-
+    # Contracted indices are assigned positive integers, uncontracted indices
+    # are assigned negative integers.
     common_index_map = Dict([(x[2], x[1]) for x in enumerate(common_indices)])
     uncommon_indices_map = Dict([(x[2], -x[1]) for x
                                     in enumerate(uncommon_indices)])
@@ -90,148 +90,70 @@ function create_ncon_indices(A::Node, B::Node,
     return A_ncon_indices, B_ncon_indices
 end
 
-function contract_network!(network::TensorNetworkCircuit,
-                           plan::Array{Symbol, 1},
-                           output_shape::Union{String, Array{<:Integer, 1}}="")
-    contract_network!(network, plan, backend, output_shape)
-end
-
 """
     function contract_network!(network::TensorNetworkCircuit,
                                plan::Array{Symbol, 1},
-                               backend::DSLWriter,
                                output_shape::Union{String, Array{<:Integer, 1}})
 
-Function to write dsl commands describing how to contract the given network
-according to the given contraction plan.
+Function to contract the given network according to the given contraction plan.
+The resulting tensor will be given the shape described by 'output_shape'.
 """
 function contract_network!(network::TensorNetworkCircuit,
                            plan::Array{Symbol, 1},
-                           backend::DSLWriter,
                            output_shape::Union{String, Array{<:Integer, 1}}="")
-
-    dsl_filename = backend.dsl_filename
-    tensor_data_filename = backend.tensor_data_filename
-    output_data_filename = backend.output_data_filename
-    if output_data_filename == ""
-        output_data_filename = tensor_data_filename
-    end
-
-    # # A string to hold all of the generated dsl commands.
-    # dsl_script = ""
-
-    # Append load commands to the dsl script for each tensor.
-    for (node_label, node) in pairs(network.nodes)
-        node_name = string(node_label)
-        data_label = string(node.data_label)
-        push!(backend, "tensor $node_name $data_label")
-    end
 
     # Loop through the plan and contract each edge in sequence
     for edge in plan
-        # sometimes edges get contracted ahead of time if connecting two
-        # tensors being contracted
-        if edge in keys(network.edges)
-            contract_pair!(network, edge, backend)
-        end
+        contract_pair!(network, edge)
     end
 
     # Contract disjoint pieces of the network, if any
     while length(network.nodes) > 1
         n1, state = iterate(network.nodes)
         n2, _ = iterate(network.nodes, state)
-        contract_pair!(network, n1.first, n2.first, backend)
+        contract_pair!(network, n1.first, n2.first)
     end
 
     # Reshape the final tensor if a shape is specified by the user.
+    output_tensor = Symbol("node_$(network.counters["node"])")
     if output_shape == "vector"
         vector_length = 2^length(network.output_qubits)
-        command = "reshape node_$(network.counters["node"]) $vector_length"
-        push!(backend, command)
+        reshape_tensor(backend, output_tensor, vector_length)
 
     elseif output_shape != ""
-        command = "reshape node_$(network.counters["node"]) "
-        command *= join(output_shape, ",")
-        push!(backend, command)
+        reshape_tensor(backend, output_tensor, output_shape)
     end
 
-    # Add a command to save the contracted the network under the
-    # group name 'result'.
-    command = "save node_$(network.counters["node"]) $output_data_filename result"
-    push!(backend, command)
-end
-
-"""
-    function contract_network!(network::TensorNetworkCircuit,
-                               plan::Array{Symbol, 1},
-                               backend::InteractiveBackend,
-                               output_shape::Union{String, Array{<:Integer, 1}})
-
-Function to interactively contract the given network according to the given
-contraction plan.
-"""
-function contract_network!(network::TensorNetworkCircuit,
-                           plan::Array{Symbol, 1},
-                           backend::InteractiveBackend,
-                           output_shape::Union{String, Array{<:Integer, 1}}="")
-
-    # Loop through the plan and contract each edge in sequence.
-    for edge in plan
-        # Sometimes edges get contracted ahead of time if connecting two
-        # tensors being contracted.
-        if edge in keys(network.edges)
-            contract_pair!(network, edge, backend)
-        end
-    end
-
-    # Contract disjoint pieces of the network, if any.
-    while length(network.nodes) > 1
-        n1, state = iterate(network.nodes)
-        n2, _ = iterate(network.nodes, state)
-        contract_pair!(network, n1.first, n2.first, backend)
-    end
-
-    # Get the node corresponding to the fully contracted tensor network.
-    node, _ = iterate(values(network.nodes))
-
-    # Reshape the final tensor if a shape is specified by the user.
-    if output_shape == "vector"
-        vector_length = 2^length(network.output_qubits)
-        node.data[:] = reshape_tensor(node.data, vector)
-
-    elseif output_shape != ""
-        node.data[:] = reshape_tensor(node.data, output_shape)
-    end
+    # save the final tensor under the name "result".
+    save_output(backend, output_tensor)
 end
 
 """
     function contract_pair!(network::TensorNetworkCircuit,
-                            edge::Symbol,
-                            executer::AbstractBackend)
+                            edge::Symbol)
 
 Contract a pair of nodes connected by the given edge.
 """
 function contract_pair!(network::TensorNetworkCircuit,
-                        edge::Symbol,
-                        backend::AbstractBackend)
+                        edge::Symbol)
+    # sometimes edges get contracted ahead of time if connecting two
+    # tensors being contracted
     if edge in keys(network.edges)
         e = network.edges[edge]
-        return contract_pair!(network, e.src, e.dst, backend)
+        return contract_pair!(network, e.src, e.dst)
     end
 end
 
 """
     function contract_pair!(network::TensorNetworkCircuit,
                             A_label::Symbol,
-                            B_label::Symbol,
-                            backend::DSLWriter)
+                            B_label::Symbol)
 
-Function to create dsl commands which contract the nodes A and B of the network.
+Function to contract the nodes A and B of the network.
 """
 function contract_pair!(network::TensorNetworkCircuit,
                         A_label::Symbol,
-                        B_label::Symbol,
-                        backend::DSLWriter)
+                        B_label::Symbol)
 
     # Should only contract different tensors, so skip contraction if A = B.
     if A_label == B_label
@@ -243,7 +165,7 @@ function contract_pair!(network::TensorNetworkCircuit,
     B = network.nodes[B_label]
 
     # Sort the indices of A and B into shared and unshared.
-    common_indices, remaining_indices = contract_indices(A, B)
+    common_indices, remaining_indices = sort_indices(A, B)
 
     # Create array of ncon indices for A and B.
     A_ncon_indices, B_ncon_indices = create_ncon_indices(A, B,
@@ -275,88 +197,16 @@ function contract_pair!(network::TensorNetworkCircuit,
     delete!(network.nodes, A_label)
     delete!(network.nodes, B_label)
 
-    # Create and return the dsl commands for performing this contraction and
-    # deleting the old tensors.
-    ncon_str = "ncon " * string(C_label) * " "
-    ncon_str *= string(A_label) * " " * join(A_ncon_indices, ",") * " "
-    ncon_str *= string(B_label) * " " * join(B_ncon_indices, ",")
-    push!(backend, ncon_str)
+    # Get the backend to contract the tensors
+    contract_tensors(backend, A_label, A_ncon_indices,
+                     B_label, B_ncon_indices, C_label)
 
-    push!(backend, "del " * string(A_label))
-    push!(backend, "del " * string(B_label))
     C_label
 end
 
-"""
-    function contract_pair!(network::TensorNetworkCircuit,
-                            A_label::Symbol,
-                            B_label::Symbol,
-                            backend::InteractiveBackend)
-
-Function to interactively contract a pair of nodes A and B.
-"""
-function contract_pair!(network::TensorNetworkCircuit,
-                        A_label::Symbol,
-                        B_label::Symbol,
-                        backend::InteractiveBackend)
-
-    # Should only contract different tensors, so skip contraction if A = B.
-    if A_label == B_label
-        return nothing
-    end
-
-    # Get the tensors being contracted and denote them A and B
-    A = network.nodes[A_label]
-    B = network.nodes[B_label]
-
-    # Sort the indices of A and B into shared and unshared.
-    common_indices, remaining_indices = contract_indices(A, B)
-
-    # Create array of ncon indices for A and B.
-    A_ncon_indices, B_ncon_indices = create_ncon_indices(A, B,
-                                                         common_indices,
-                                                         remaining_indices)
-
-    # Get the tensor data and create a new label for the tensor created
-    # by contracting A and B.
-    C_label = new_label!(network, "node")
-    A_data = backend.tensors[A.data_label]
-    B_data = backend.tensors[B.data_label]
-    C_data = contract_tensors((A_data, B_data),
-                              (A_ncon_indices, B_ncon_indices))
-    if typeof(C_data) <: Number
-        C_data = [C_data]
-    end
-    save_tensor_data(backend, C_label, C_data)
-
-    # Create and add the new node to the tensor network.
-    C = Node(remaining_indices, C_label)
-    network.nodes[C_label] = C
-
-    # remove contracted edges
-    for index in common_indices
-        delete!(network.edges, index)
-    end
-
-    # replumb existing edges to point to new node
-    # TODO: might become time consuming for large networks
-    for index in remaining_indices
-        e = network.edges[index]
-        if e.src in [A_label, B_label]
-            e.src = C_label
-        elseif e.dst in [A_label, B_label]
-            e.dst = C_label
-        end
-    end
-
-    # delete the nodes that were contracted
-    delete!(network.nodes, A_label)
-    delete!(network.nodes, B_label)
-    C_label
-end
-
-
-
+# *************************************************************************** #
+#                       Compression of a tensor network
+# *************************************************************************** #
 
 """
     function compress_tensor_chain!(tng::TensorNetworkCircuit,
@@ -377,7 +227,7 @@ function compress_tensor_chain!(tng::TensorNetworkCircuit,
         left_indices = setdiff(left_node.indices, right_node.indices)
         right_indices = setdiff(right_node.indices, left_node.indices)
 
-        combined_node = contract_pair!(tng, nodes[i], nodes[i+1], backend)
+        combined_node = contract_pair!(tng, nodes[i], nodes[i+1])
 
         decompose_tensor!(tng, combined_node, left_indices, right_indices,
                           left_label=nodes[i],
@@ -393,7 +243,7 @@ function compress_tensor_chain!(tng::TensorNetworkCircuit,
         left_indices = setdiff(left_node.indices, right_node.indices)
         right_indices = setdiff(right_node.indices, left_node.indices)
 
-        combined_node = contract_pair!(tng, nodes[i], nodes[i+1], backend)
+        combined_node = contract_pair!(tng, nodes[i], nodes[i+1])
 
         decompose_tensor!(tng, combined_node, left_indices, right_indices,
                           left_label=nodes[i],

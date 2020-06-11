@@ -19,6 +19,7 @@ function load_tensor!(tensors::Dict{Symbol, Array{<:Number}},
                       tensor_label::String,
                       data_label::String,
                       tensor_data_filename::String)
+
     tensor = Symbol(tensor_label)
     tensors[tensor] = h5open(tensor_data_filename, "r") do file
         read(file, data_label)
@@ -61,25 +62,24 @@ function delete_tensor!(tensors::Dict{Symbol, Array{<:Number}},
 end
 
 """
-    function contract_tensors!(tensors::Dict{Symbol, Array{<:Number}},
-                               new_label::String,
-                               A_label::String, A_indices::String,
-                               B_label::String, B_indices::String)
+    function contract_tensors(tensors_to_contract::Tuple{Array{<:Number}, Array{<:Number}},
+                              tensor_indices::Tuple{Array{<:Integer,1},Array{<:Integer,1}})
 
-Contract the tensors A and B and save the result as a new tensor
+Function to contract the tensors contained in the tuple 'tensors_to_contract'
+according to the ncon indices given and return the result.
 """
-function contract_tensors(tensors_to_contract, tensor_indices)
+function contract_tensors(tensors_to_contract::Tuple{Array{<:Number}, Array{<:Number}},
+                          tensor_indices::Tuple{Array{<:Integer,1},Array{<:Integer,1}})
     ncon(tensors_to_contract, tensor_indices)
 end
 
 """
-    function reshape!(tensors::Dict{Symbol, Array{<:Number}},
-                      tensor_label::Symbol,
-                      dims::Array{<:Integer})
+    function reshape_tensor(tensor, dims)
 
 Reshape a tensor
 """
-function reshape_tensor(tensor, dims)
+function reshape_tensor(tensor::Array{<:Number},
+                        dims::Union{Integer, Array{<:Integer, 1}})
     reshape(tensor, dims...)
 end
 

@@ -55,7 +55,7 @@ end
                   cx q[1],q[2];"""
 
     circ = load_qasm_as_circuit(qasm_str)
-    DSLWriter()
+    DSLBackend()
     tng = convert_qiskit_circ_to_network(circ)
     add_input!(tng, "000")
     add_output!(tng, "000")
@@ -122,17 +122,17 @@ end
         end
     end
 
-    # Create the network again to test the interactive executer
+    # Create the network again to test the interactive backend
     InteractiveBackend()
     tng = convert_qiskit_circ_to_network(circ)
     add_input!(tng, "00")
     plan = random_contraction_plan(tng)
-    contract_network!(tng, plan)
+    contract_network!(tng, plan, "vector")
 
     @test length(tng.nodes) == 1
 
-    result_label = collect(values(tng.nodes))[1].data_label
-    result = PicoQuant.backend.tensors[result_label]
+    # Check the result
+    result = PicoQuant.backend.tensors[:result]
     @test real(result)[1] ≈ 1/2
 end
 
@@ -173,7 +173,7 @@ end
                                                 v.dst != nothing]
 
         for edge in plan
-              contract_pair!(tn, edge, backend)
+              contract_pair!(tn, edge)
         end
 
         compress_tensor_chain!(tn, [:node_18, :node_19])

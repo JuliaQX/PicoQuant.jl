@@ -1,7 +1,6 @@
 using HDF5
 
 @testset "Test executing dsl commands from file" begin
-    # Testing the dsl writer
     qasm_str = """OPENQASM 2.0;
                   include "qelib1.inc";
                   qreg q[3];
@@ -10,7 +9,7 @@ using HDF5
                   cx q[1],q[2];"""
 
     circ = load_qasm_as_circuit(qasm_str)
-    DSLWriter()
+    DSLBackend()
     tng = convert_qiskit_circ_to_network(circ)
     add_input!(tng, "000")
     add_output!(tng, "000")
