@@ -10,6 +10,7 @@ using HDF5
                   cx q[1],q[2];"""
 
     circ = load_qasm_as_circuit(qasm_str)
+    InteractiveBackend()
     tng = convert_qiskit_circ_to_network(circ)
     plan = random_contraction_plan(tng)
 
@@ -54,16 +55,15 @@ end
                   cx q[1],q[2];"""
 
     circ = load_qasm_as_circuit(qasm_str)
+    DSLBackend()
     tng = convert_qiskit_circ_to_network(circ)
     add_input!(tng, "000")
     add_output!(tng, "000")
     plan = random_contraction_plan(tng)
 
-    executer = DSLWriter()
-
     try
         # Test if contract_network creates files with dsl and tensor data.
-        contract_network!(tng, plan, executer)
+        contract_network!(tng, plan)
         @test isfile("contract_network.tl")
         @test isfile("tensor_data.h5")
 
@@ -95,7 +95,7 @@ end
     plan = random_contraction_plan(tng)
 
     try
-        contract_network!(tng, plan, executer, "vector")
+        contract_network!(tng, plan, "vector")
 
         # Is there only one node left in nodes array after the contraction?
         @test begin
@@ -122,26 +122,26 @@ end
         end
     end
 
-    # Create the network again to test the interactive executer
+    # Create the network again to test the interactive backend
+    InteractiveBackend()
     tng = convert_qiskit_circ_to_network(circ)
     add_input!(tng, "00")
     plan = random_contraction_plan(tng)
-
-    executer = InteractiveExecuter()
-    contract_network!(tng, plan, executer)
+    contract_network!(tng, plan, "vector")
 
     @test length(tng.nodes) == 1
 
-    result = collect(values(tng.nodes))[1].data
+    # Check the result
+    result = PicoQuant.backend.tensors[:result]
     @test real(result)[1] ≈ 1/2
 end
 
 @testset "Test tensor chain compression" begin
     @test begin
+        InteractiveBackend()
         tn = TensorNetworkCircuit(2)
         add_input!(tn, "00")
-        env = InteractiveExecuter()
-        compress_tensor_chain!(tn, collect(keys(tn.nodes)), env)
+        compress_tensor_chain!(tn, collect(keys(tn.nodes)))
         length(tn.nodes) == 2
     end
 
@@ -159,6 +159,7 @@ end
                       cx q[0],q[1];
                       cx q[0],q[1];
                       """
+        InteractiveBackend()
         circ = load_qasm_as_circuit(qasm_str)
         tn = convert_qiskit_circ_to_network(circ)
         add_input!(tn, "0"^2)
@@ -171,14 +172,13 @@ end
                                                 v.src != nothing &&
                                                 v.dst != nothing]
 
-        env = InteractiveExecuter()
         for edge in plan
-              contract_pair!(tn, edge, env)
+              contract_pair!(tn, edge)
         end
 
-        compress_tensor_chain!(tn, [:node_18, :node_19], env)
+        compress_tensor_chain!(tn, [:node_18, :node_19])
 
         idx = findfirst(x -> x == :index_14, tn.nodes[:node_18].indices)
-        size(tn.nodes[:node_18].data)[idx] == 2
+        size(backend.tensors[:node_18])[idx] == 2
     end
 end

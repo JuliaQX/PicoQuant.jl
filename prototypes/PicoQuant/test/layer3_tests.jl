@@ -10,6 +10,7 @@ using LinearAlgebra
                   cx q[1],q[2];"""
 
     circ = load_qasm_as_circuit(qasm_str)
+    InteractiveBackend()
     tng = convert_qiskit_circ_to_network(circ)
     tng_json = to_json(tng)
 
@@ -37,6 +38,7 @@ end
     end
 
     hadamard = [1 1; 1 -1]./sqrt(2)
+    InteractiveBackend()
     add_gate!(tn, hadamard, [1])
     @test begin
         length(tn.nodes) == 1
@@ -48,6 +50,7 @@ end
 end
 
 @testset "Test tensor decomposition" begin
+    InteractiveBackend()
     tn = TensorNetworkCircuit(2)
     gate_data = rand(ComplexF64, 2, 2, 2, 2)
     gate_label = add_gate!(tn, gate_data, [1, 2])
@@ -56,11 +59,12 @@ end
 
     @test begin
         new_nodes = decompose_tensor!(tn, gate_label, left_indices, right_indices)
-        env = InteractiveExecuter()
-        contract_pair!(tn, new_nodes..., env)
+        result_label = contract_pair!(tn, new_nodes...)
         # should now only be a single node left
         # index order will have changed so permute back before comparing
-        data = permutedims(collect(values(tn.nodes))[1].data, (1, 3, 2, 4))
+        # data = reshape(collect(values(backend.tensors))[1], 2, 2, 2, 2)
+        data = backend.tensors[result_label]
+        data = permutedims(data, (1, 3, 2, 4))
         data ≈ gate_data
     end
 end

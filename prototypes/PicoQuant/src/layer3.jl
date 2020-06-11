@@ -23,17 +23,17 @@ struct Node
     # the indices that the node contains
     indices::Array{Symbol, 1}
     # data tensor
-    data::Array{<:Number}
+    data_label::Symbol
 end
 
 """
-    function Node(data::Array{Number})
+    function Node(data_label::Symbol)
 
-Outer constructor to create an instance of Node with the given data and no
+Outer constructor to create an instance of Node with the given data label and no
 index labels
 """
-function Node(data::Array{<:Number})
-    Node(Array{Symbol, 1}(), data)
+function Node(data_label::Symbol)
+    Node(Array{Symbol, 1}(), data_label)
 end
 
 "Struct to represent an edge"
@@ -134,9 +134,15 @@ function add_gate!(network::TensorNetworkCircuit,
     end
 
     # create a node object for the gate
+    # TODO: Having data_label equal the node_label is redundant
+    # but thinking these can differ when avoiding duplication of tensor data.
     node_label = new_label!(network, "node")
-    new_node = Node(vcat(input_indices, output_indices), gate_data)
+    data_label = node_label
+    new_node = Node(vcat(input_indices, output_indices), data_label)
     network.nodes[node_label] = new_node
+
+    # Save the gate data to the executer
+    save_tensor_data(backend, node_label, data_label, gate_data)
 
     # remap nodes that edges are connected to
     for qubit in 1:length(input_indices)
@@ -177,8 +183,14 @@ function add_input!(network::TensorNetworkCircuit, config::String)
     @assert length(config) == network.number_qubits
     for (input_index, config_char) in zip(network.input_qubits, config)
         node_label = new_label!(network, "node")
+        data_label = node_label
+
         node_data = (config_char == '0') ? [1., 0.] : [0., 1.]
-        network.nodes[node_label] = Node([input_index], node_data)
+        network.nodes[node_label] = Node([input_index], data_label)
+
+        # Save the gate data to the executer
+        save_tensor_data(backend, node_label, data_label, node_data)
+
         network.edges[input_index].src = node_label
     end
 end
@@ -187,8 +199,14 @@ function add_output!(network::TensorNetworkCircuit, config::String)
     @assert length(config) == network.number_qubits
     for (output_index, config_char) in zip(network.output_qubits, config)
         node_label = new_label!(network, "node")
+        data_label = node_label
+
         node_data = (config_char == '0') ? [1., 0.] : [0., 1.]
-        network.nodes[node_label] = Node([output_index], node_data)
+        network.nodes[node_label] = Node([output_index], data_label)
+
+        # Save the gate data to the executer
+        save_tensor_data(backend, node_label, data_label, node_data)
+
         network.edges[output_index].dst = node_label
     end
 end
@@ -350,17 +368,7 @@ Function to serialise node instance to json format
 """
 function to_dict(node::Node)
     node_dict = Dict{String, Any}("indices" => [String(x) for x in node.indices])
-    if ndims(node.data) == 0
-        node_dict["data_re"] = real(node.data)
-        node_dict["data_im"] = imag(node.data)
-        node_dict["data_dims"] = (1, )
-    else
-        node_dict["data_re"] = reshape(real.(node.data),
-                                          length(node.data))
-        node_dict["data_im"] = reshape(imag.(node.data),
-                                          length(node.data))
-        node_dict["data_dims"] = size(node.data)
-    end
+    node_dict["data_label"] = string(node.data_label)
     node_dict
 end
 
@@ -371,8 +379,8 @@ Function to create a node instance from a json string
 """
 function node_from_dict(d::AbstractDict)
     indices = [Symbol(x) for x in d["indices"]]
-    data = reshape(d["data_re"] + d["data_im"].*1im, Tuple(d["data_dims"]))
-    Node(indices, data)
+    data_label = Symbol(d["data_label"])
+    Node(indices, data_label)
 end
 
 """
@@ -473,15 +481,16 @@ function decompose_tensor!(tng::TensorNetworkCircuit,
                            left_label::Union{Nothing, Symbol}=nothing,
                            right_label::Union{Nothing, Symbol}=nothing)
     node = tng.nodes[node_label]
+    node_data = backend.tensors[node_label]
 
     index_map = Dict([v => k for (k, v) in enumerate(node.indices)])
     left_positions = [index_map[x] for x in left_indices]
     right_positions = [index_map[x] for x in right_indices]
-    dims = size(node.data)
+    dims = size(node_data)
     left_dims = [dims[x] for x in left_positions]
     right_dims = [dims[x] for x in right_positions]
 
-    A = permutedims(node.data, vcat(left_positions, right_positions))
+    A = permutedims(node_data, vcat(left_positions, right_positions))
     A = reshape(A, Tuple([prod(left_dims), prod(right_dims)]))
 
     # Use SVD here but QR could also be used
@@ -500,12 +509,15 @@ function decompose_tensor!(tng::TensorNetworkCircuit,
     B_label = (left_label == nothing) ? new_label!(tng, "node") : left_label
     C_label = (right_label == nothing) ? new_label!(tng, "node") : right_label
     index_label = new_label!(tng, "index")
-    B_node = Node(vcat(left_indices, [index_label,]), B)
-    C_node = Node(vcat([index_label,], right_indices), C)
+    B_node = Node(vcat(left_indices, [index_label,]), B_label)
+    C_node = Node(vcat([index_label,], right_indices), C_label)
 
     # add the nodes
     tng.nodes[B_label] = B_node
     tng.nodes[C_label] = C_node
+
+    backend.tensors[B_label] = B
+    backend.tensors[C_label] = C
 
     # remap edge endpoints
     for index in left_indices

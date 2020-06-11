@@ -20,6 +20,11 @@ qasm_str = """OPENQASM 2.0;
 ## Use qiskit to load the qasm and get a qiskit circuit object
 circ = load_qasm_as_circuit(qasm_str)
 
+# Create a DSLWriter object and set it as the backend. The DSLWriter will write
+# DSL commands and save tensor data to the given files.
+
+DSLWriter("ghz_3.tl", "ghz_3_data.h5")
+
 ## From qiskit circuit object build a tensor network representation
 tng = convert_qiskit_circ_to_network(circ)
 
@@ -32,15 +37,10 @@ add_input!(tng, "000")
 
 plan = random_contraction_plan(tng)
 
-# Create a dsl_writer object which is used to write DSL commands and save
-# tensor data to the given files.
-
-executer = dsl_writer("ghz_3.tl", "ghz_3_data.h5")
-
 # Using the given contraction plan, we prepare a DSL description which will
 # execute the given plan and also write the tensors required to a file on disk.
 
-contract_network!(tng, plan, executer, "vector")
+contract_network!(tng, plan, "vector")
 
 # We can examine the DSL that is produced
 
