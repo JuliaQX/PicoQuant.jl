@@ -1,3 +1,4 @@
+import Base.push!
 
 export AbstractBackend, DSLBackend, InteractiveBackend, save_tensor_data
 export backend

@@ -1,6 +1,6 @@
 import Random.shuffle
 
-export random_contraction_plan
+export random_contraction_plan, inorder_contraction_plan
 export contraction_plan_to_json, contraction_plan_from_json
 export contract_pair!, contract_network!
 export compress_tensor_chain!
@@ -8,15 +8,25 @@ export compress_tensor_chain!
 using HDF5
 
 """
+    function inorder_contraction_plan(network::TensorNetworkCircuit)
+
+Function to return contraction plan by order of indices
+"""
+function inorder_contraction_plan(network::TensorNetworkCircuit)
+    [x for (x, y) in pairs(edges(network)) if y.src != nothing
+                                           && y.dst != nothing]
+end
+
+"""
     function random_contraction_plan(network::TensorNetworkCircuit)
 
 Function to create a random contraction plan
 """
 function random_contraction_plan(network::TensorNetworkCircuit)
-    closed_edges = [x for (x, y) in pairs(edges(network)) if y.src != nothing
-                                                          && y.dst != nothing]
+    closed_edges = inorder_contraction_plan(network)
     shuffle(closed_edges)
 end
+
 
 # function cost_flops(network, plan)
 # end
