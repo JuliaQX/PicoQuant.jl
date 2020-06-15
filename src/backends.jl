@@ -1,7 +1,7 @@
 import Base.push!
 
 export AbstractBackend, DSLBackend, InteractiveBackend, save_tensor_data
-export backend
+export backend, load_tensor_data
 export push!
 
 backend = nothing
@@ -19,6 +19,11 @@ function save_tensor_data(nothing,
     error("Please initialise a backend")
 end
 
+function load_tensor_data(nothing,
+                          tensor_label::Symbol)
+    error("Please initialise a backend")
+end
+
 function contract_tensors(nothing,
                           A_label::Symbol, A_ncon_indices,
                           B_label::Symbol, B_ncon_indices,
@@ -33,6 +38,16 @@ end
 function reshape_tensor(nothing,
                         tensor::Symbol,
                         shape::Union{Array{<:Integer, 1}, Integer})
+    error("Please initialise a backend")
+end
+
+function decompose_tensor!(nothing,
+                           tensor::Symbol,
+                           left_indices::Array{Int, 1},
+                           right_indices::Array{Int, 1};
+                           threshold::AbstractFloat=1e-13,
+                           left_label::Symbol,
+                           right_label::Symbol)
     error("Please initialise a backend")
 end
 
@@ -97,9 +112,28 @@ function save_tensor_data(backend::DSLBackend,
     # and append commands to the dsl script to the tensor.
     h5open(backend.tensor_data_filename, "cw") do file
         tensor_label = string(tensor_label)
+        if exists(file, tensor_label)
+            o_delete(file, tensor_label)
+        end
         write(file, tensor_label, tensor_data)
         push!(backend, "tensor $node_label $tensor_label")
     end
+end
+
+"""
+    function load_tensor_data(backend::DSLBackend,
+                              tensor_label::Symbol)
+
+Function to load tensor data from backend storage (if present)
+"""
+function load_tensor_data(backend::DSLBackend,
+                          tensor_label::Symbol)
+      h5open(backend.tensor_data_filename, "r") do file
+          tensor_label = string(tensor_label)
+          if exists(file, tensor_label)
+              return read(file, tensor_label)
+          end
+      end
 end
 
 """
@@ -150,6 +184,31 @@ function reshape_tensor(backend::DSLBackend,
     push!(backend, command)
 end
 
+"""
+    function decompose_tensor!(backend::DSLBackend,
+                               tensor::Symbol,
+                               left_indices::Array{Int, 1},
+                               right_indices::Array{Int, 1};
+                               threshold::AbstractFloat=1e-13,
+                               left_label::Symbol,
+                               right_label::Symbol)
+
+Function to decompose a single tensor into two tensors
+"""
+function decompose_tensor!(backend::DSLBackend,
+                           tensor::Symbol,
+                           left_indices::Array{Int, 1},
+                           right_indices::Array{Int, 1};
+                           threshold::AbstractFloat=1e-13,
+                           left_label::Symbol,
+                           right_label::Symbol)
+    cmd_str = "decompose $tensor "
+    cmd_str *= "$left_label " * join(left_indices, ",")
+    cmd_str *= " $right_label " * join(right_indices, ",")
+    cmd_str *= " {\"threshold\":$threshold}"
+    push!(backend, cmd_str)
+end
+
 # *************************************************************************** #
 #                             Interactive Backend
 # *************************************************************************** #
@@ -184,6 +243,20 @@ function save_tensor_data(backend::InteractiveBackend,
     # is added to avoid duplication of tensor data.
     backend.tensors[tensor_label] = tensor_data
 end
+
+"""
+    function load_tensor_data(backend::InteractiveBackend,
+                              tensor_label::Symbol)
+
+Function to load tensor data from backend storage (if present)
+"""
+function load_tensor_data(backend::InteractiveBackend,
+                          tensor_label::Symbol)
+    if tensor_label in keys(backend.tensors)
+        return backend.tensors[tensor_label]
+    end
+end
+
 
 """
     function contract_tensors(backend::InteractiveBackend,
@@ -234,4 +307,39 @@ function reshape_tensor(backend::InteractiveBackend,
                         tensor::Symbol,
                         shape::Union{Array{<:Integer, 1}, Integer})
     backend.tensors[tensor] = reshape_tensor(backend.tensors[tensor], shape)
+end
+
+"""
+    function decompose_tensor!(backend::InteractiveBackend,
+                               tensor::Symbol,
+                               left_positions::Array{Int, 1},
+                               right_positions::Array{Int, 1};
+                               threshold::AbstractFloat=1e-13,
+                               left_label::Symbol,
+                               right_label::Symbol)
+
+Function to decompose a single tensor into two tensors
+"""
+function decompose_tensor!(backend::InteractiveBackend,
+                           tensor::Symbol,
+                           left_positions::Array{Int, 1},
+                           right_positions::Array{Int, 1};
+                           threshold::AbstractFloat=1e-13,
+                           left_label::Symbol,
+                           right_label::Symbol)
+
+    node_data = backend.tensors[tensor]
+    dims = size(node_data)
+    left_dims = [dims[x] for x in left_positions]
+    right_dims = [dims[x] for x in right_positions]
+
+    (B, C) = decompose_tensor(node_data,
+                              left_positions,
+                              right_positions,
+                              threshold=threshold)
+
+    backend.tensors[left_label] = B
+    backend.tensors[right_label] = C
+
+    delete!(backend.tensors, tensor)
 end

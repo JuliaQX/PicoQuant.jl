@@ -12,7 +12,7 @@ export to_dict, to_json, network_from_dict, edge_from_dict, node_from_dict
 export network_from_json
 export inneighbours, outneighbours, virtualneighbours, neighbours
 export inedges, outedges
-export decompose_tensor!
+export decompose_gate!
 
 # *************************************************************************** #
 #           Tensor network circuit data structure and functions
@@ -133,44 +133,77 @@ function add_gate!(network::TensorNetworkCircuit,
         network.output_qubits[target_qubit] = output_indices[i]
     end
 
-    # create a node object for the gate
-    # TODO: Having data_label equal the node_label is redundant
-    # but thinking these can differ when avoiding duplication of tensor data.
-    node_label = new_label!(network, "node")
-    data_label = node_label
-    new_node = Node(vcat(input_indices, output_indices), data_label)
-    network.nodes[node_label] = new_node
+    if decompose && n == 2
+        gates_data = decompose_gate!(gate_data)
+        virtual_index = new_label!(network, "index")
+        node_labels = [new_label!(network, "node") for x in 1:2]
+        network.edges[virtual_index] = Edge(node_labels[1],
+                                            node_labels[2],
+                                            nothing,
+                                            true)
+        for i in 1:2
+            node_label = node_labels[i]
+            data_label = node_label
+            if i == 1
+                indices = [input_indices[i], output_indices[i], virtual_index]
+            else
+                indices = [virtual_index, input_indices[i], output_indices[i]]
+            end
+            new_node = Node(indices, data_label)
+            network.nodes[node_label] = new_node
 
-    # Save the gate data to the executer
-    save_tensor_data(backend, node_label, data_label, gate_data)
+            # Save the gate data to the executer
+            save_tensor_data(backend, node_label, data_label, gates_data[i])
 
-    # remap nodes that edges are connected to
-    for qubit in 1:length(input_indices)
-        input_index = input_indices[qubit]
-        output_index = output_indices[qubit]
-        network.edges[output_index] = Edge(node_label,
-                                           network.edges[input_index].dst,
-                                           target_qubits[qubit])
+            input_index = input_indices[i]
+            output_index = output_indices[i]
+            network.edges[output_index] = Edge(node_label,
+                                               network.edges[input_index].dst,
+                                               target_qubits[i])
 
-        # if there is an output node, we need to update incoming index
-        if network.edges[input_index].dst != nothing
-            out_node = network.nodes[network.edges[input_index].dst]
-            for i in 1:length(out_node.indices)
-                if out_node.indices[i] == input_index
-                    out_node.indices[i] = output_index
+            # if there is an output node, we need to update incoming index
+            if network.edges[input_index].dst != nothing
+                out_node = network.nodes[network.edges[input_index].dst]
+                for i in 1:length(out_node.indices)
+                    if out_node.indices[i] == input_index
+                        out_node.indices[i] = output_index
+                    end
                 end
             end
+            network.edges[input_index].dst = node_label
         end
-        network.edges[input_index].dst = node_label
-    end
-
-    # If we have a gate acting on 2 qubits and have decomposition enabled
-    if n == 2 && decompose
-        return decompose_tensor!(network,
-                                 node_label,
-                                 [input_indices[1], output_indices[1]],
-                                 [input_indices[2], output_indices[2]])
+        return node_labels
     else
+        # create a node object for the gate
+        # TODO: Having data_label equal the node_label is redundant
+        # but thinking these can differ when avoiding duplication of tensor data.
+        node_label = new_label!(network, "node")
+        data_label = node_label
+        new_node = Node(vcat(input_indices, output_indices), data_label)
+        network.nodes[node_label] = new_node
+
+        # Save the gate data to the executer
+        save_tensor_data(backend, node_label, data_label, gate_data)
+
+        # remap nodes that edges are connected to
+        for qubit in 1:length(input_indices)
+            input_index = input_indices[qubit]
+            output_index = output_indices[qubit]
+            network.edges[output_index] = Edge(node_label,
+                                               network.edges[input_index].dst,
+                                               target_qubits[qubit])
+
+            # if there is an output node, we need to update incoming index
+            if network.edges[input_index].dst != nothing
+                out_node = network.nodes[network.edges[input_index].dst]
+                for i in 1:length(out_node.indices)
+                    if out_node.indices[i] == input_index
+                        out_node.indices[i] = output_index
+                    end
+                end
+            end
+            network.edges[input_index].dst = node_label
+        end
         return node_label
     end
 end
@@ -468,34 +501,20 @@ function network_from_json(json_str::String)
 end
 
 """
-    function decompose_tensor!(tng::TensorNetworkCircuit,
-                               node::Symbol
-                               left_indices::Array{Symbol, 1},
-                               right_indices::Array{Symbol, 1};
-                               threshold::AbstractFloat=1e-15,
-                               left_label::Union{Nothing, Symbol}=nothing,
-                               right_label::Union{Nothing, Symbol}=nothing)
+    function decompose_gate!(gate_data::Array{<:Number, 4},
+                             threshold::AbstractFloat=1e-15)
 
 Decompose a tensor into two smaller tensors
 """
-function decompose_tensor!(tng::TensorNetworkCircuit,
-                           node_label::Symbol,
-                           left_indices::Array{Symbol, 1},
-                           right_indices::Array{Symbol, 1};
-                           threshold::AbstractFloat=1e-15,
-                           left_label::Union{Nothing, Symbol}=nothing,
-                           right_label::Union{Nothing, Symbol}=nothing)
-    node = tng.nodes[node_label]
-    node_data = backend.tensors[node_label]
-
-    index_map = Dict([v => k for (k, v) in enumerate(node.indices)])
-    left_positions = [index_map[x] for x in left_indices]
-    right_positions = [index_map[x] for x in right_indices]
-    dims = size(node_data)
+function decompose_gate!(gate_data::Array{<:Number, 4},
+                         threshold::AbstractFloat=1e-15)
+    left_positions = [1, 3]
+    right_positions = [2, 4]
+    dims = size(gate_data)
     left_dims = [dims[x] for x in left_positions]
     right_dims = [dims[x] for x in right_positions]
 
-    A = permutedims(node_data, vcat(left_positions, right_positions))
+    A = permutedims(gate_data, vcat(left_positions, right_positions))
     A = reshape(A, Tuple([prod(left_dims), prod(right_dims)]))
 
     # Use SVD here but QR could also be used
@@ -510,40 +529,5 @@ function decompose_tensor!(tng::TensorNetworkCircuit,
     B = reshape(F.U[:, 1:chi] * Diagonal(s), Tuple(vcat(left_dims, [chi,])))
     C = reshape(Diagonal(s) * F.Vt[1:chi, :], Tuple(vcat([chi,], right_dims)))
 
-    # plumb these nodes back into the graph and delete the original
-    B_label = (left_label == nothing) ? new_label!(tng, "node") : left_label
-    C_label = (right_label == nothing) ? new_label!(tng, "node") : right_label
-    index_label = new_label!(tng, "index")
-    B_node = Node(vcat(left_indices, [index_label,]), B_label)
-    C_node = Node(vcat([index_label,], right_indices), C_label)
-
-    # add the nodes
-    tng.nodes[B_label] = B_node
-    tng.nodes[C_label] = C_node
-
-    backend.tensors[B_label] = B
-    backend.tensors[C_label] = C
-
-    # remap edge endpoints
-    for index in left_indices
-        if tng.edges[index].src == node_label
-            tng.edges[index].src = B_label
-        elseif tng.edges[index].dst == node_label
-            tng.edges[index].dst = B_label
-        end
-    end
-    for index in right_indices
-        if tng.edges[index].src == node_label
-            tng.edges[index].src = C_label
-        elseif tng.edges[index].dst == node_label
-            tng.edges[index].dst = C_label
-        end
-    end
-
-    # add new edge
-    tng.edges[index_label] = Edge(B_label, C_label, nothing, true)
-
-    delete!(tng.nodes, node_label)
-
-    (B_label, C_label)
+    return B, C
 end

@@ -57,8 +57,8 @@ function create_graph(tng::TensorNetworkCircuit)
             bs = get_vertex(tng.edges[bond].src)
             bd = get_vertex(tng.edges[bond].dst)
             if bs != nothing && bd != nothing
-                add_edge!(g, bs, bd)
-                set_prop!(g, bs, bd, :label, String(bond))
+                MetaGraphs.add_edge!(g, bs, bd)
+                MetaGraphs.set_prop!(g, bs, bd, :label, String(bond))
             end
         end
     end

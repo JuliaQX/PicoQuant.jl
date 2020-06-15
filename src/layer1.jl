@@ -1,7 +1,9 @@
 export load_tensor!, save_tensor!, delete_tensor!, contract_tensors
 export reshape_tensor, transpose_tensor, conjugate_tensor, execute_dsl_file
+export decompose_tensor
 
 using TensorOperations, HDF5
+using JSON
 
 # *************************************************************************** #
 #                             dsl functions
@@ -44,7 +46,11 @@ function save_tensor!(tensor_data_filename::String,
     if group_name == ""
         group_name = tensor_label
     end
-
+    h5open(tensor_data_filename, "cw") do file
+        if exists(file, tensor_label)
+            o_delete(file, tensor_label)
+        end
+    end
     tensor_label = Symbol(tensor_label)
     h5write(tensor_data_filename, group_name, tensors[tensor_label])
 end
@@ -102,6 +108,34 @@ Conjugate the elements of a tensor.
 function conjugate_tensor(tensor::Array{<:Number})
     conj.(tensor)
 end
+
+function decompose_tensor(tensor::Array{<:Number},
+                          left_positions::Array{Int, 1},
+                          right_positions::Array{Int, 1};
+                          threshold::AbstractFloat=1e-13)
+
+    dims = size(tensor)
+    left_dims = [dims[x] for x in left_positions]
+    right_dims = [dims[x] for x in right_positions]
+
+    A = permutedims(tensor, vcat(left_positions, right_positions))
+    A = reshape(A, Tuple([prod(left_dims), prod(right_dims)]))
+
+    # Use SVD here but QR could also be used
+    F = svd(A)
+
+    # find number of singular values above the threshold
+    chi = sum(F.S .> threshold)
+    s = sqrt.(F.S[1:chi])
+
+    # assume that singular values and basis of U and V matrices are sorted
+    # in descending order of singular value
+    B = reshape(F.U[:, 1:chi] * Diagonal(s), Tuple(vcat(left_dims, [chi,])))
+    C = reshape(Diagonal(s) * F.Vt[1:chi, :], Tuple(vcat([chi,], right_dims)))
+
+    B, C
+end
+
 
 # *************************************************************************** #
 #                Reading and executing dsl commands from file
@@ -166,6 +200,34 @@ function execute_dsl_file(dsl_filename::String="contract_network.tl",
 
             # Reshape the tensor.
             tensors[tensor_label] = reshape_tensor(tensor, dims)
+        elseif command[1] == "decompose"
+            A_label, B_label, B_idxs, C_label, C_idxs, options = command[2:end]
+
+            A_label = Symbol(A_label)
+            B_label = Symbol(B_label)
+            C_label = Symbol(C_label)
+
+            # Convert indices into integer array for ncon.
+            B_idxs = parse.(Int, split(B_idxs, ","))
+            C_idxs = parse.(Int, split(C_idxs, ","))
+
+            # Contract A and B and save the result.
+            A = tensors[A_label]
+
+            options = JSON.parse(options)
+
+            if haskey(options, "threshold")
+                (B, C) = decompose_tensor(A,
+                                          B_idxs,
+                                          C_idxs,
+                                          threshold=options["threshold"])
+            else
+                (B, C) = decompose_tensor(A,
+                                          B_idxs,
+                                          C_idxs)
+            end
+            tensors[B_label] = B
+            tensors[C_label] = C
         end
     end
 
