@@ -1,6 +1,7 @@
 using Random
 
 export create_qft_circuit, create_simple_preparation_circuit
+export create_ghz_preparation_circuit
 
 """
     function create_qft_circuit(qubits::Integer)
@@ -60,5 +61,22 @@ function create_simple_preparation_circuit(qubits::Integer,
         end
         circ.barrier()
     end
+    circ
+end
+
+"""
+    function create_ghz_preparation_circuit(qubits::Integer)
+
+Create a ghz preparation circuit
+"""
+function create_ghz_preparation_circuit(qubits::Integer)
+    qiskit = pyimport("qiskit")
+    circ = qiskit.QuantumCircuit(qubits)
+
+    circ.h(0)
+    for q in 1:qubits-1
+        circ.cx(q-1, q)
+    end
+
     circ
 end

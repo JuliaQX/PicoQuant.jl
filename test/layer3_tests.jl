@@ -53,13 +53,10 @@ end
     InteractiveBackend()
     tn = TensorNetworkCircuit(2)
     gate_data = rand(ComplexF64, 2, 2, 2, 2)
-    gate_label = add_gate!(tn, gate_data, [1, 2])
-    left_indices = [tn.input_qubits[1], tn.output_qubits[1]]
-    right_indices = [tn.input_qubits[2], tn.output_qubits[2]]
 
     @test begin
-        new_nodes = decompose_tensor!(tn, gate_label, left_indices, right_indices)
-        result_label = contract_pair!(tn, new_nodes...)
+        gate_labels = add_gate!(tn, gate_data, [1, 2], decompose=true)
+        result_label = contract_pair!(tn, gate_labels...)
         # should now only be a single node left
         # index order will have changed so permute back before comparing
         # data = reshape(collect(values(backend.tensors))[1], 2, 2, 2, 2)

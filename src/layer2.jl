@@ -3,7 +3,9 @@ import Random.shuffle
 export random_contraction_plan, inorder_contraction_plan
 export contraction_plan_to_json, contraction_plan_from_json
 export contract_pair!, contract_network!
-export compress_tensor_chain!
+export compress_tensor_chain!, decompose_tensor!
+export contract_mps_tensor_network_circuit!
+export calculate_mps_amplitudes!
 
 using HDF5
 
@@ -221,44 +223,179 @@ end
 """
     function compress_tensor_chain!(tng::TensorNetworkCircuit,
                                     nodes::Symbol;
-                                    threshold::AbstractFloat=1e-15)
+                                    threshold::AbstractFloat=1e-13)
 
 Compress a chain of tensors
 """
-function compress_tensor_chain!(tng::TensorNetworkCircuit,
+function compress_tensor_chain!(network::TensorNetworkCircuit,
                                 nodes::Array{Symbol, 1};
-                                threshold::AbstractFloat=1e-15)
+                                threshold::AbstractFloat=1e-13)
 
     # forward pass
     for i in 1:(length(nodes) - 1)
-        left_node = tng.nodes[nodes[i]]
-        right_node = tng.nodes[nodes[i+1]]
+        left_node = network.nodes[nodes[i]]
+        right_node = network.nodes[nodes[i+1]]
 
         left_indices = setdiff(left_node.indices, right_node.indices)
         right_indices = setdiff(right_node.indices, left_node.indices)
 
-        combined_node = contract_pair!(tng, nodes[i], nodes[i+1])
+        combined_node = contract_pair!(network, nodes[i], nodes[i+1])
 
-        decompose_tensor!(tng, combined_node, left_indices, right_indices,
+        decompose_tensor!(network, combined_node, left_indices, right_indices,
                           left_label=nodes[i],
-                          right_label=nodes[i+1]
+                          right_label=nodes[i+1],
+                          threshold=threshold
                          )
     end
 
     # now do a backward pass
     for i in (length(nodes) - 1):-1:1
-        left_node = tng.nodes[nodes[i]]
-        right_node = tng.nodes[nodes[i+1]]
+        left_node = network.nodes[nodes[i]]
+        right_node = network.nodes[nodes[i+1]]
 
         left_indices = setdiff(left_node.indices, right_node.indices)
         right_indices = setdiff(right_node.indices, left_node.indices)
 
-        combined_node = contract_pair!(tng, nodes[i], nodes[i+1])
+        combined_node = contract_pair!(network, nodes[i], nodes[i+1])
 
-        decompose_tensor!(tng, combined_node, left_indices, right_indices,
+        decompose_tensor!(network, combined_node, left_indices, right_indices,
                           left_label=nodes[i],
-                          right_label=nodes[i+1]
+                          right_label=nodes[i+1],
+                          threshold=threshold
                          )
     end
 
+end
+
+"""
+    function decompose_tensor!(tng::TensorNetworkCircuit,
+                               node::Symbol
+                               left_indices::Array{Symbol, 1},
+                               right_indices::Array{Symbol, 1};
+                               threshold::AbstractFloat=1e-15,
+                               left_label::Union{Nothing, Symbol}=nothing,
+                               right_label::Union{Nothing, Symbol}=nothing)
+
+Decompose a tensor into two smaller tensors
+"""
+function decompose_tensor!(tng::TensorNetworkCircuit,
+                           node_label::Symbol,
+                           left_indices::Array{Symbol, 1},
+                           right_indices::Array{Symbol, 1};
+                           threshold::AbstractFloat=1e-14,
+                           left_label::Union{Nothing, Symbol}=nothing,
+                           right_label::Union{Nothing, Symbol}=nothing)
+
+    node = tng.nodes[node_label]
+    index_map = Dict([v => k for (k, v) in enumerate(node.indices)])
+    left_positions = [index_map[x] for x in left_indices]
+    right_positions = [index_map[x] for x in right_indices]
+
+    # plumb these nodes back into the graph and delete the original
+    B_label = (left_label == nothing) ? new_label!(tng, "node") : left_label
+    C_label = (right_label == nothing) ? new_label!(tng, "node") : right_label
+    index_label = new_label!(tng, "index")
+    B_node = Node(vcat(left_indices, [index_label,]), B_label)
+    C_node = Node(vcat([index_label,], right_indices), C_label)
+
+    decompose_tensor!(backend,
+                      node_label,
+                      left_positions,
+                      right_positions;
+                      threshold=threshold,
+                      left_label=B_label,
+                      right_label=C_label)
+
+    # add the nodes
+    tng.nodes[B_label] = B_node
+    tng.nodes[C_label] = C_node
+
+    # remap edge endpoints
+    for index in left_indices
+        if tng.edges[index].src == node_label
+            tng.edges[index].src = B_label
+        elseif tng.edges[index].dst == node_label
+            tng.edges[index].dst = B_label
+        end
+    end
+    for index in right_indices
+        if tng.edges[index].src == node_label
+            tng.edges[index].src = C_label
+        elseif tng.edges[index].dst == node_label
+            tng.edges[index].dst = C_label
+        end
+    end
+
+    # add new edge
+    tng.edges[index_label] = Edge(B_label, C_label, nothing, true)
+
+    delete!(tng.nodes, node_label)
+
+    (B_label, C_label)
+end
+
+"""
+    function contract_mps_tensor_network_circuit(network::TensorNetworkCircuit;
+                                                 threshold::AbstractFloat=1e-13)
+
+Contract a tensor network representing a quantum circuit using MPS techniques
+"""
+function contract_mps_tensor_network_circuit!(network::TensorNetworkCircuit;
+                                              max_bond::Integer=2,
+                                              threshold::AbstractFloat=1e-13)
+    # identify the MPS nodes as the input nodes
+    mps_nodes = [network.edges[x].src for x in network.input_qubits]
+    @assert all([x != nothing for x in mps_nodes]) "Input qubit values must be set"
+
+    # identify the MPS nodes as the input nodes
+    qubits = length(network.input_qubits)
+    mps_nodes = [network.edges[x].src for x in network.input_qubits]
+    @assert all([x != nothing for x in mps_nodes]) "Input qubit values must be set"
+
+    gate_nodes = setdiff(collect(keys(network.nodes)), mps_nodes)
+    bond_counts = zeros(Int, qubits-1)
+    for node in gate_nodes
+        # find the input node to connect to it
+        input_node = inneighbours(network, node)[1]
+        @assert input_node in mps_nodes "$input_node not in mps nodes"
+        idx = findfirst(x -> x == input_node, mps_nodes)
+        if length(virtualneighbours(network, node)) > 0
+            for vn in virtualneighbours(network, node)
+                if vn in mps_nodes
+                    vn_idx = findfirst(x -> x == vn, mps_nodes)
+                    bond_counts[min(vn_idx, idx)] += 1
+                end
+            end
+        end
+        mps_nodes[idx] = contract_pair!(network, input_node, node)
+        if maximum(bond_counts) > max_bond
+            compress_tensor_chain!(network, mps_nodes)
+            bond_counts[:] .= 0
+        end
+    end
+
+    # save the final mps tensors
+    for (i, node) in enumerate(mps_nodes)
+        save_output(backend, node, String(node))
+    end
+    mps_nodes
+end
+
+
+"""
+    function calculate_mps_amplitudes!(network::TensorNetworkCircuit,
+                                      mps_nodes::Array{Symbol, 1},
+                                      result::String="result")
+
+Calculate amplitudes from an MPS state
+"""
+function calculate_mps_amplitudes!(network::TensorNetworkCircuit,
+                                   mps_nodes::Array{Symbol, 1},
+                                   result::String="result")
+    output_node = mps_nodes[1]
+    for node in mps_nodes[2:end]
+        output_node = contract_pair!(network, output_node, node)
+    end
+    reshape_tensor(backend, output_node, 2^length(mps_nodes))
+    save_output(backend, output_node, result)
 end

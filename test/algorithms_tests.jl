@@ -65,7 +65,6 @@ end
         qubits = 1
         circ = create_simple_preparation_circuit(qubits, 4, 42)
 
-
         ψ = get_statevector_using_picoquant(circ,
                                             big_endian=false)
         ψ′ = get_statevector_using_qiskit(circ, big_endian=false)
