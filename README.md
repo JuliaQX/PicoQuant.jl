@@ -73,3 +73,19 @@ Then from the Julia REPL
 ENV["PYTHON"] = "~/.julia/conda/picoquant_env"
 ]build PyCall
 ```
+
+## Building the documentation
+
+The package uses Documenter.jl to  generate html documentation from the sources.
+To build the documentation, run the make.jl script from the docs folder.
+
+```
+cd docs && julia make.jl
+```
+
+The documentation will be placed in the build folder and can be hosted locally
+by starting a local http server with
+
+```
+cd build && python3 -m http.server
+```

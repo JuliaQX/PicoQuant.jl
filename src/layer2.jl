@@ -221,15 +221,19 @@ end
 # *************************************************************************** #
 
 """
-    function compress_tensor_chain!(tng::TensorNetworkCircuit,
-                                    nodes::Symbol;
+    function compress_tensor_chain!(network::TensorNetworkCircuit,
+                                    nodes::Array{Symbol, 1};
                                     threshold::AbstractFloat=1e-13)
 
-Compress a chain of tensors
+Compress a chain of tensors by given by the array of symbols. This is achieved
+by peforming forward and backward sweeps of compressing each bond.
 """
 function compress_tensor_chain!(network::TensorNetworkCircuit,
                                 nodes::Array{Symbol, 1};
                                 threshold::AbstractFloat=1e-13)
+
+    # TODO: required that tensors in the chain only have virtual bonds between
+    # consecutive tensors. Add a check that enforces this
 
     # forward pass
     for i in 1:(length(nodes) - 1)
