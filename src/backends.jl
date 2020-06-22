@@ -11,7 +11,14 @@ act on TensorNetworkCircuits"
 abstract type AbstractBackend end
 
 # Function methods to warn the user when a backend isn't initialised.
+"""
+    function save_tensor_data(nothing,
+                              node_label::Symbol,
+                              tensor_label::Symbol,
+                              tensor_data::Array{<:Number})
 
+Save the provided tensor data to the provided backend.
+"""
 function save_tensor_data(nothing,
                           node_label::Symbol,
                           tensor_label::Symbol,
@@ -19,11 +26,26 @@ function save_tensor_data(nothing,
     error("Please initialise a backend")
 end
 
+"""
+    function load_tensor_data(nothing,
+                              tensor_label::Symbol)
+
+Function to load tensor data from backend storage (if present)
+"""
 function load_tensor_data(nothing,
                           tensor_label::Symbol)
     error("Please initialise a backend")
 end
 
+"""
+    function contract_tensors(nothing,
+                              A_label::Symbol, A_ncon_indices::Array{<:Integer, 1},
+                              B_label::Symbol, B_ncon_indices::Array{<:Integer, 1},
+                              C_label::Symbol)
+
+Function to add dsl commands to a dsl backend's script that contract two tensors
+A and B to create a third tensor C.
+"""
 function contract_tensors(nothing,
                           A_label::Symbol, A_ncon_indices,
                           B_label::Symbol, B_ncon_indices,
@@ -31,16 +53,38 @@ function contract_tensors(nothing,
     error("Please initialise a backend")
 end
 
+"""
+    function save_output(nothing, node::Symbol, name::String)
+
+Function to save the result of fully contracting a network under the given
+name.
+"""
 function save_output(nothing, node::Symbol, name::String)
     error("Please initialise a backend")
 end
 
+"""
+    function reshape_tensor(nothing, tensor::Symbol, shape)
+
+Function to add dsl command that reshapes a given tensor.
+"""
 function reshape_tensor(nothing,
                         tensor::Symbol,
                         shape::Union{Array{<:Integer, 1}, Integer})
     error("Please initialise a backend")
 end
 
+"""
+    function decompose_tensor!(nothing,
+                               tensor::Symbol,
+                               left_indices::Array{Int, 1},
+                               right_indices::Array{Int, 1};
+                               threshold::AbstractFloat=1e-13,
+                               left_label::Symbol,
+                               right_label::Symbol)
+
+Function to decompose a single tensor into two tensors
+"""
 function decompose_tensor!(nothing,
                            tensor::Symbol,
                            left_indices::Array{Int, 1},

@@ -1,6 +1,5 @@
 import MetaGraphs
 import LightGraphs
-# import Base: push!
 
 using PicoQuant
 using Statistics

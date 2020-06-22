@@ -36,7 +36,7 @@ function Node(data_label::Symbol)
     Node(Array{Symbol, 1}(), data_label)
 end
 
-"Struct to represent an edge"
+"""Struct to represent an edge"""
 mutable struct Edge
     src::Union{Symbol, Nothing}
     dst::Union{Symbol, Nothing}
@@ -49,7 +49,7 @@ mutable struct Edge
     Edge() = new(nothing, nothing, nothing, false)
 end
 
-"Struct for tensor network graph of a circuit"
+"""Struct for tensor network graph of a circuit"""
 struct TensorNetworkCircuit
     number_qubits::Integer
 
@@ -208,10 +208,21 @@ function add_gate!(network::TensorNetworkCircuit,
     end
 end
 
+"""
+    function edges(network::TensroNetworkCircuit)
+
+Function to return edges from a given network
+"""
 function edges(network::TensorNetworkCircuit)
     network.edges
 end
 
+"""
+    function add_input!(network::TensorNetworkCircuit, config::String)
+
+Function to add input nodes to a tensor network circuit with a given input
+configuration
+"""
 function add_input!(network::TensorNetworkCircuit, config::String)
     @assert length(config) == network.number_qubits
     for (input_index, config_char) in zip(network.input_qubits, config)
@@ -228,6 +239,12 @@ function add_input!(network::TensorNetworkCircuit, config::String)
     end
 end
 
+"""
+    function add_output!(network::TensorNetworkCircuit, config::String)
+
+Function to add output nodes to a tensor network circuit with a given output
+configuration
+"""
 function add_output!(network::TensorNetworkCircuit, config::String)
     @assert length(config) == network.number_qubits
     for (output_index, config_char) in zip(network.output_qubits, config)
@@ -244,6 +261,13 @@ function add_output!(network::TensorNetworkCircuit, config::String)
     end
 end
 
+"""
+    function inneighbours(network::TensorNetworkCircuit,
+                          node_label::Symbol)
+
+Function to return the nodes which are connected to the given node with
+incoming edges
+"""
 function inneighbours(network::TensorNetworkCircuit,
                       node_label::Symbol)
     node = network.nodes[node_label]
@@ -257,6 +281,13 @@ function inneighbours(network::TensorNetworkCircuit,
     myarray
 end
 
+"""
+    function outneighbours(network::TensorNetworkCircuit,
+                           node_label::Symbol)
+
+Function to return the nodes which are connected to the given node with
+outgoing edges
+"""
 function outneighbours(network::TensorNetworkCircuit,
                        node_label::Symbol)
     node = network.nodes[node_label]
@@ -270,6 +301,13 @@ function outneighbours(network::TensorNetworkCircuit,
     myarray
 end
 
+"""
+    function virtualneighbours(network::TensorNetworkCircuit,
+                           node_label::Symbol)
+
+Function to return the nodes which are connected to the given node with
+virtual edges
+"""
 function virtualneighbours(network::TensorNetworkCircuit,
                            node_label::Symbol)
     node = network.nodes[node_label]
@@ -285,6 +323,12 @@ function virtualneighbours(network::TensorNetworkCircuit,
     myarray
 end
 
+"""
+    function neighbours(network::TensorNetworkCircuit,
+
+Function to get all neighbouring nodes of the given node (incoming, outgoing and
+virtual)
+"""
 function neighbours(network::TensorNetworkCircuit,
                     node_label::Symbol)
     vcat(inneighbours(network, node_label),
@@ -292,12 +336,24 @@ function neighbours(network::TensorNetworkCircuit,
          virtualneighbours(network, node_label))
 end
 
+"""
+    function inedges(network::TensorNetworkCircuit,
+                     node_label::Symbol)
+
+Function to get all incoming edges to the current node
+"""
 function inedges(network::TensorNetworkCircuit,
                  node_label::Symbol)
     idxs = network.nodes[node_label].indices
     [x for x in idxs if !network.edges[x].virtual && network.edges[x].dst == node_label]
 end
 
+"""
+    function outedges(network::TensorNetworkCircuit,
+                      node_label::Symbol)
+
+Function to get all outgoing edges to the current node
+"""
 function outedges(network::TensorNetworkCircuit,
                   node_label::Symbol)
     idxs = network.nodes[node_label].indices
