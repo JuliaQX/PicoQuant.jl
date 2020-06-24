@@ -143,6 +143,38 @@ for (backend_name, backend_funcs) in pairs(backends)
         end
     end
 
+    @testset "Test full wavefunction contraction for $backend_name" begin
+
+        # Create a tensor network to work with.
+        qasm_str = """OPENQASM 2.0;
+                      include "qelib1.inc";
+                      qreg q[3];
+                      h q[0];
+                      cx q[0],q[1];
+                      cx q[0],q[1];
+                      cx q[0],q[2];
+                      """
+
+        try
+            backend_funcs[:init]()
+            circ = load_qasm_as_circuit(qasm_str)
+            tn = convert_qiskit_circ_to_network(circ)
+            add_input!(tn, "000")
+
+            # See if full wavefunction contraction completes.
+            full_wavefunction_contraction!(tn, "vector")
+
+            backend_funcs[:execute]
+
+            # Is there only one node left after the contraction?
+            @test begin
+                length(tn.nodes) == 1
+            end
+        finally
+            backend_funcs[:finalise]()
+        end
+    end
+
     @testset "Test tensor chain compression for $backend_name" begin
 
         @test begin
