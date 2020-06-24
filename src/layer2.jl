@@ -2,7 +2,7 @@ import Random.shuffle
 
 export random_contraction_plan, inorder_contraction_plan
 export contraction_plan_to_json, contraction_plan_from_json
-export contract_pair!, contract_network!
+export contract_pair!, contract_network!, full_wavefunction_contraction!
 export compress_tensor_chain!, decompose_tensor!
 export contract_mps_tensor_network_circuit!
 export calculate_mps_amplitudes!
@@ -29,15 +29,76 @@ function random_contraction_plan(network::TensorNetworkCircuit)
     shuffle(closed_edges)
 end
 
+"""
+    function full_wavefunction_contraction!(tn::TensorNetworkCircuit)
 
-# function cost_flops(network, plan)
-# end
-#
-# function cost_max_memory(network, plan)
-# end
-#
-# function find_contraction_plan(network, cost_function)
-# end
+Function to contract a network by first contracting input nodes together, to
+get the wavefunction representing the initial state, and then contracting
+gates into the wavefunction in the order they appear in the circuit.
+"""
+function full_wavefunction_contraction!(tn::TensorNetworkCircuit,
+                                        output_shape::Union{String, Array{<:Integer, 1}}="")
+
+    # Get the input nodes of the circuit
+    input_nodes = [tn.edges[edge].src for edge in tn.input_qubits]
+    if nothing in input_nodes
+        error("Please create nodes for each input before using wavefunction
+               contraction")
+    end
+
+    # Contract all of the input nodes to get a tensor representing the full
+    # initial wavefunction.
+    wf = input_nodes[1]
+    for wfi in input_nodes[2:end]
+        wf = contract_pair!(tn, wf, wfi)
+    end
+
+    # While there's more than one node in the network, contract all other nodes
+    # connected to the wavefunction into the wavefunction node.
+    while length(tn.nodes) > 1
+
+        # Contract the wavefunction with each of its neighbours.
+        for neighbour in outneighbours(tn, wf)
+
+            # Skip this node if it was already contracted into the wavefunction
+            # (and so no longer in tn.nodes). This happens when multiple edges
+            # point from the wavefunction to the same node.
+            if !(neighbour in keys(tn.nodes))
+                continue
+            end
+            neighbour_node = tn.nodes[neighbour]
+
+            # If the next node to be contracted into the wavefunction has an
+            # edge whose src is something other then the wf or itself, then
+            # some other node of the circuit should be contracted into wf before
+            # this one.
+            skip = false
+            for index in neighbour_node.indices
+                e = tn.edges[index]
+                if !(e.src in [wf, neighbour])
+                    skip = true
+                    break
+                end
+            end
+            if !skip
+                wf = contract_pair!(tn, wf, neighbour)
+            end
+        end
+    end
+
+
+    # Reshape the final tensor if a shape is specified by the user.
+    output_tensor = Symbol("node_$(tn.counters["node"])")
+    if output_shape == "vector"
+        vector_length = 2^length(tn.output_qubits)
+        reshape_tensor(backend, output_tensor, vector_length)
+    elseif output_shape != ""
+        reshape_tensor(backend, output_tensor, output_shape)
+    end
+
+    # save the final tensor under the name "result".
+    save_output(backend, output_tensor)
+end
 
 
 """

@@ -13,6 +13,7 @@ PicoQuant.contraction_plan_to_json
 PicoQuant.contraction_plan_from_json
 PicoQuant.contract_pair!
 PicoQuant.contract_network!
+PicoQuant.full_wavefunction_contraction!
 PicoQuant.compress_tensor_chain!
 PicoQuant.contract_mps_tensor_network_circuit!
 PicoQuant.calculate_mps_amplitudes!
