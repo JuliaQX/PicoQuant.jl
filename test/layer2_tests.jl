@@ -247,7 +247,9 @@ for (backend_name, backend_funcs) in pairs(backends)
                 backend_funcs[:init]()
                 n = 5
                 circ = create_ghz_preparation_circuit(n)
-                tn = convert_qiskit_circ_to_network(circ, decompose=true)
+                tn = convert_qiskit_circ_to_network(circ,
+                                                    decompose=true,
+                                                    transpile=true)
                 add_input!(tn, "0"^n)
                 mps_nodes = contract_mps_tensor_network_circuit!(tn)
                 calculate_mps_amplitudes!(tn, mps_nodes)

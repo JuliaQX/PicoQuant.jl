@@ -1,6 +1,6 @@
 export load_tensor!, save_tensor!, delete_tensor!, contract_tensors
 export reshape_tensor, transpose_tensor, conjugate_tensor, execute_dsl_file
-export decompose_tensor
+export decompose_tensor, permute_tensor
 
 using TensorOperations, HDF5
 using JSON
@@ -87,6 +87,16 @@ Reshape a tensor
 function reshape_tensor(tensor::Array{<:Number},
                         dims::Union{Integer, Array{<:Integer, 1}})
     reshape(tensor, dims...)
+end
+
+"""
+    function permute_tensor(tensor, dims)
+
+Permute a tensor
+"""
+function permute_tensor(tensor::Array{<:Number},
+                        dims::Union{Integer, Array{<:Integer, 1}})
+    permutedims(tensor, dims)
 end
 
 """
@@ -200,6 +210,18 @@ function execute_dsl_file(dsl_filename::String="contract_network.tl",
 
             # Reshape the tensor.
             tensors[tensor_label] = reshape_tensor(tensor, dims)
+
+        elseif command[1] == "permute"
+            tensor_label, dims = command[2:end]
+            tensor_label = Symbol(tensor_label)
+            tensor = tensors[tensor_label]
+
+            # Convert dimensions into integer array for reshaping.
+            dims = parse.(Int, split(dims, ","))
+
+            # Reshape the tensor.
+            tensors[tensor_label] = permute_tensor(tensor, dims)
+
         elseif command[1] == "decompose"
             A_label, B_label, B_idxs, C_label, C_idxs, options = command[2:end]
 

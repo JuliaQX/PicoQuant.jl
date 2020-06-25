@@ -438,6 +438,7 @@ function contract_mps_tensor_network_circuit!(network::TensorNetworkCircuit;
             bond_counts[:] .= 0
         end
     end
+    compress_tensor_chain!(network, mps_nodes)
 
     # save the final mps tensors
     for (i, node) in enumerate(mps_nodes)
@@ -445,7 +446,6 @@ function contract_mps_tensor_network_circuit!(network::TensorNetworkCircuit;
     end
     mps_nodes
 end
-
 
 """
     function calculate_mps_amplitudes!(network::TensorNetworkCircuit,
@@ -461,6 +461,7 @@ function calculate_mps_amplitudes!(network::TensorNetworkCircuit,
     for node in mps_nodes[2:end]
         output_node = contract_pair!(network, output_node, node)
     end
+    permute_tensor(backend, output_node, network.qubit_ordering)
     reshape_tensor(backend, output_node, 2^length(mps_nodes))
     save_output(backend, output_node, result)
 end
