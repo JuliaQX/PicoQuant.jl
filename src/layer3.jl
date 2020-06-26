@@ -7,7 +7,7 @@ export TensorNetworkCircuit
 export Node, Edge, add_gate!, edges
 export new_label!, add_input!, add_output!
 export load_qasm_as_circuit_from_file, load_qasm_as_circuit
-export convert_qiskit_circ_to_network
+export convert_qiskit_circ_to_network, transpile_circuit
 export to_dict, to_json, network_from_dict, edge_from_dict, node_from_dict
 export network_from_json
 export inneighbours, outneighbours, virtualneighbours, neighbours
@@ -62,8 +62,12 @@ struct TensorNetworkCircuit
     # Map of nodes by symbol
     nodes::OrderedDict{Symbol, Node}
 
-    # dictionary of edges indexed by index symbol where value is node pair
+    # Dictionary of edges indexed by index symbol where value is node pair
     edges::OrderedDict{Symbol, Edge}
+
+    # Array with indices of quantum register positions corresponding to
+    # each classical register position
+    qubit_ordering::Array{Integer, 1}
 
     # implementation details, not shared outside module
     # counters for assigning unique symbol names to nodes and indices
@@ -97,7 +101,7 @@ function TensorNetworkCircuit(qubits::Integer)
 
     # Create the tensor network
     TensorNetworkCircuit(qubits, input_indices, output_indices, nodes,
-                         edges, counters)
+                         edges, collect(1:qubits), counters)
 end
 
 """
@@ -209,7 +213,7 @@ function add_gate!(network::TensorNetworkCircuit,
 end
 
 """
-    function edges(network::TensroNetworkCircuit)
+    function edges(network::TensorNetworkCircuit)
 
 Function to return edges from a given network
 """
@@ -247,7 +251,9 @@ configuration
 """
 function add_output!(network::TensorNetworkCircuit, config::String)
     @assert length(config) == network.number_qubits
-    for (output_index, config_char) in zip(network.output_qubits, config)
+    for i in 1:network.number_qubits
+        qubit_pos = network.qubit_ordering[i]
+        output_index, config_char = network.output_qubits[qubit_pos], config[i]
         node_label = new_label!(network, "node")
         data_label = node_label
 
@@ -389,31 +395,74 @@ function load_qasm_as_circuit(qasm_str::String)
 end
 
 """
-    function convert_qiskit_circ_to_network(circ)
+    function transpile_circuit(circ,
+                               couplings::Union{Nothing,
+                               Array{<:Array{<:Integer, 1}, 1})} = nothing))
 
-Convert the given a qiskit circuit to a tensor network
+Transpile circuit so only neighbouring qubits have gates applied to them
+"""
+function transpile_circuit(circ,
+                           couplings::Union{Nothing,
+                           Array{<: Array{<:Integer, 1}, 1}} = nothing)
+    n_qubits = convert(Int, circ.n_qubits)
+    transpiler = pyimport("qiskit.transpiler")
+    passes = pyimport("qiskit.transpiler.passes")
+
+    # create a copy of the circuit with measurements removed to prevent
+    # duplicate measurements
+    circ = circ.remove_final_measurements(inplace=false)
+    # now add measurments to all output qubits
+    circ.measure_all()
+
+    if couplings == nothing
+        couplings = [[i-1, i] for i = 1:n_qubits]
+    end
+    coupling_map = transpiler.CouplingMap(
+                    PyCall.array2py([PyCall.array2py(x) for x in couplings]))
+
+    pass = passes.BasicSwap(coupling_map=coupling_map)
+    pass_manager = transpiler.PassManager(pass)
+    circ = pass_manager.run(circ)
+
+    # now look at measurements and find out if any qubits have been remapped
+    ngates = length(circ.data)
+    qubit_ordering = zeros(Int, n_qubits)
+    for i in (ngates-n_qubits):ngates-1
+        measurement = get(circ, i)
+        qbit = measurement[2][1].index
+        cbit = measurement[3][1].index
+        qubit_ordering[cbit+1] = qbit + 1
+    end
+    circ.remove_final_measurements()
+    circ, qubit_ordering
+end
+
+"""
+    function convert_qiskit_circ_to_network(circ;
+                                            decompose::Bool=false,
+                                            transpile::Bool=false)
+
+Given a qiskit circuit object, this function will convert this to a tensor
+network circuit. If the decompose option is true it will decompose two qubit
+gates to two tensors acting on each qubit with a virtual bond connecting them.
+The transpile option will transpile the circuit using the basicswap pass
+from qiskit to ensure that two qubit gates are only applied between neighbouring
+qubits.
 """
 function convert_qiskit_circ_to_network(circ;
                                         decompose::Bool=false,
-                                        transpile::Bool=true)
-    transpiler = pyimport("qiskit.transpiler")
-    passes = pyimport("qiskit.transpiler.passes")
-    qi = pyimport("qiskit.quantum_info")
+                                        transpile::Bool=false)
     barrier = pyimport("qiskit.extensions.standard.barrier")
-
+    qi = pyimport("qiskit.quantum_info")
+    n_qubits = convert(Int, circ.n_qubits)
     if transpile
-        coupling = [[i-1, i] for i = 1:circ.n_qubits]
-        coupling_map = transpiler.CouplingMap(
-                       PyCall.array2py([PyCall.array2py(x) for x in coupling]))
-
-        pass = passes.BasicSwap(coupling_map=coupling_map)
-        # pass = passes.LookaheadSwap(coupling_map=coupling_map)
-        # pass = passes.StochasticSwap(coupling_map=coupling_map)
-        pass_manager = transpiler.PassManager(pass)
-        circ = pass_manager.run(circ)
+        circ, qubit_ordering = transpile_circuit(circ)
+    else
+        qubit_ordering = collect(1:n_qubits)
     end
 
-    tng = TensorNetworkCircuit(circ.n_qubits)
+    tng = TensorNetworkCircuit(n_qubits)
+    tng.qubit_ordering[:] = qubit_ordering[:]
     for gate in circ.data
         # If the gate is a barrier then skip it
         if ! pybuiltin(:isinstance)(gate[1], barrier.Barrier)
@@ -425,7 +474,6 @@ function convert_qiskit_circ_to_network(circ;
             add_gate!(tng, data, target_qubits, decompose=decompose)
         end
     end
-
     tng
 end
 
@@ -495,6 +543,7 @@ function to_dict(network::TensorNetworkCircuit)
     end
     top_level["input_qubits"] = [String(x) for x in network.input_qubits]
     top_level["output_qubits"] = [String(x) for x in network.output_qubits]
+    top_level["qubit_ordering"] = [x for x in network.qubit_ordering]
     top_level
 end
 
@@ -525,9 +574,10 @@ function network_from_dict(dict::AbstractDict{String, Any})
 
     input_qubits = [Symbol(x) for x in dict["input_qubits"]]
     output_qubits = [Symbol(x) for x in dict["output_qubits"]]
+    qubit_ordering = dict["qubit_ordering"]
 
     TensorNetworkCircuit(number_qubits, input_qubits, output_qubits, nodes,
-                         edges, counters)
+                         edges, qubit_ordering, counters)
 end
 
 

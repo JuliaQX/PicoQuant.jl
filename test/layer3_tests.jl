@@ -75,9 +75,26 @@ end
                   cx q[1],q[2];"""
 
     circ = load_qasm_as_circuit(qasm_str)
+    InteractiveBackend()
     tng = convert_qiskit_circ_to_network(circ, decompose=true)
 
     @test begin
         length(tng.nodes) == 5
+    end
+end
+
+@testset "Test transpilation" begin
+    qasm_str = """OPENQASM 2.0;
+                  include "qelib1.inc";
+                  qreg q[3];
+                  h q[0];
+                  cx q[0],q[2];"""
+
+    circ = load_qasm_as_circuit(qasm_str)
+    InteractiveBackend()
+    tng = convert_qiskit_circ_to_network(circ, transpile=true)
+
+    @test begin
+        tng.qubit_ordering == [2, 1, 3]
     end
 end

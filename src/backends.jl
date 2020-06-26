@@ -66,11 +66,22 @@ end
 """
     function reshape_tensor(nothing, tensor::Symbol, shape)
 
-Function to add dsl command that reshapes a given tensor.
+Function reshape the given tensor to the shape provided
 """
 function reshape_tensor(nothing,
                         tensor::Symbol,
                         shape::Union{Array{<:Integer, 1}, Integer})
+    error("Please initialise a backend")
+end
+
+"""
+    function permute_tensor(nothing, tensor::Symbol, axes)
+
+Function to permute the axes of the given tensor
+"""
+function permute_tensor(nothing,
+                        tensor::Symbol,
+                        axes::Array{<:Integer, 1})
     error("Please initialise a backend")
 end
 
@@ -229,6 +240,18 @@ function reshape_tensor(backend::DSLBackend,
 end
 
 """
+    function permute_tensor(nothing, tensor::Symbol, axes)
+
+Function to permute the axes of the given tensor
+"""
+function permute_tensor(backend::DSLBackend,
+                        tensor::Symbol,
+                        axes::Array{<:Integer, 1})
+    command = "permute $tensor " * join(axes, ",")
+    push!(backend, command)
+end
+
+"""
     function decompose_tensor!(backend::DSLBackend,
                                tensor::Symbol,
                                left_indices::Array{Int, 1},
@@ -351,6 +374,17 @@ function reshape_tensor(backend::InteractiveBackend,
                         tensor::Symbol,
                         shape::Union{Array{<:Integer, 1}, Integer})
     backend.tensors[tensor] = reshape_tensor(backend.tensors[tensor], shape)
+end
+
+"""
+    function permute_tensor(nothing, tensor::Symbol, axes)
+
+Function to permute the axes of the given tensor
+"""
+function permute_tensor(backend::InteractiveBackend,
+                        tensor::Symbol,
+                        axes::Array{<:Integer, 1})
+    backend.tensors[tensor] = permute_tensor(backend.tensors[tensor], axes)
 end
 
 """
