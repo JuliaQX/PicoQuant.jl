@@ -23,7 +23,7 @@
   script:
     # Let's run the tests. Substitute `coverage = false` below, if you do not
     # want coverage results.
-    - julia -e 'using Pkg; Pkg.clone(pwd()); Pkg.build("PicoQuant"); Pkg.test("PicoQuant"; coverage = true)'
+    - julia -e 'using Pkg; Pkg.add(PackageSpec(url = pwd())); Pkg.build("PicoQuant"); Pkg.test("PicoQuant"; coverage = true)'
     # Comment out below if you do not want coverage results.
     - julia -e 'using Pkg; Pkg.add("Coverage");
       import PicoQuant; cd(joinpath(dirname(pathof(PicoQuant)), ".."));
@@ -32,17 +32,17 @@
 
 # Name a test and select an appropriate image.
 # images comes from Docker hub
-test:1.0:
-  tags:
-    - docker
-
-  image: julia:1.0.5
-  <<: *test_definition
-
 test:1.3:
   tags:
     - docker
+
   image: julia:1.3.1
+  <<: *test_definition
+
+test:1.4:
+  tags:
+    - docker
+  image: julia:1.4.2
   <<: *test_definition
 
 
