@@ -183,7 +183,14 @@ Function to load tensor data from backend storage (if present)
 """
 function load_tensor_data(backend::DSLBackend,
                           tensor_label::Symbol)
-      h5open(backend.tensor_data_filename, "r") do file
+
+      if tensor_label == :result
+          file = backend.output_data_filename
+      else
+          file = backend.tensor_data_filename
+      end
+
+      h5open(file, "r") do file
           tensor_label = string(tensor_label)
           if exists(file, tensor_label)
               return read(file, tensor_label)

@@ -13,6 +13,7 @@ export network_from_json
 export inneighbours, outneighbours, virtualneighbours, neighbours
 export inedges, outedges
 export decompose_gate!
+export gate_tensor
 
 # *************************************************************************** #
 #           Tensor network circuit data structure and functions
@@ -636,4 +637,67 @@ function decompose_gate!(gate_data::Array{<:Number, 4},
     C = reshape(Diagonal(s) * F.Vt[1:chi, :], Tuple(vcat([chi,], right_dims)))
 
     return B, C
+end
+
+# *************************************************************************** #
+#                            User utility functions
+# *************************************************************************** #
+
+# A dictionary of commonly used quantum gates.
+GATE_TENSORS = Dict{Symbol, Any}()
+
+GATE_TENSORS[:I] = [1 0; 0 1]
+GATE_TENSORS[:X] = [0 1; 1 0]
+GATE_TENSORS[:Y] = [0 -1im; 1im 0]
+GATE_TENSORS[:Z] = [1 0; 0 -1]
+
+GATE_TENSORS[:H] = [1 1; 1 -1]/sqrt(2)
+GATE_TENSORS[:S] = [1 0; 0 1im]
+GATE_TENSORS[:T] = [1 0; 0 (1 + 1im)/sqrt(2)]
+
+GATE_TENSORS[:CX] = reshape([1 0 0 0; 0 1 0 0; 0 0 0 1; 0 0 1 0], 2, 2, 2, 2)
+GATE_TENSORS[:CZ] = reshape([1 0 0 0; 0 1 0 0; 0 0 1 0; 0 0 0 -1], 2, 2, 2, 2)
+GATE_TENSORS[:SWAP] = reshape([1 0 0 0; 0 0 1 0; 0 1 0 0; 0 0 0 1], 2, 2, 2, 2)
+
+# Toffoli gate
+TOFF = zeros(8,8); TOFF[7,8] = 1; TOFF[8,7] = 1
+for i = 1:6
+    TOFF[i,i] = 1
+end
+GATE_TENSORS[:TOFF] = reshape(TOFF, 2, 2, 2, 2, 2, 2)
+
+# IBM gates
+GATE_TENSORS[:U3] = function (θ::Real,ϕ::Real,λ::Real)
+    [cos(θ/2) -exp(1im*λ)*sin(θ/2);
+     exp(1im*ϕ)*sin(θ/2) exp(1im*(ϕ+λ))*cos(θ/2)]
+end
+
+GATE_TENSORS[:U2] = function (ϕ::Real, λ::Real)
+    GATE_TENSORS[:U3](0, ϕ, λ)
+end
+
+GATE_TENSORS[:U1] = function (λ::Real)
+    GATE_TENSORS[:U3](0, 0, λ)
+end
+
+"""
+    function gate_tensor(gate::Symbol)
+
+Function to return tensors commonly used in quantum circuits. Input argument
+should be one of the following symbols:
+:I, :X, :Y, :Z, :H, :S, :T, :CX, :CZ, :SWAP, :TOFF, :U3, :U2, :U1
+"""
+function gate_tensor(gate::Symbol)
+
+    if !(gate in keys(GATE_TENSORS))
+        inputs = [":$key" for key in keys(GATE_TENSORS)]
+        println("Accepted input: ", join(inputs, ", "))
+        error("Invalid input to gate_tensor: $(gate)")
+    end
+
+    gate = GATE_TENSORS[gate]
+    if typeof(gate) <: Array{<:Number}
+        return copy(gate)
+    end
+    gate
 end
