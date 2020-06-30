@@ -47,8 +47,12 @@ function save_tensor!(tensor_data_filename::String,
         group_name = tensor_label
     end
     h5open(tensor_data_filename, "cw") do file
+        # TODO: Maybe this first if clause is redundant.
         if exists(file, tensor_label)
             o_delete(file, tensor_label)
+        end
+        if exists(file, group_name)
+            o_delete(file, group_name)
         end
     end
     tensor_label = Symbol(tensor_label)
@@ -155,7 +159,8 @@ end
     function execute_dsl_file(dsl_filename::String,
                               tensor_data_filename::String)
 
-Contract the tensors A and B and save the result as a new tensor
+Function to read dsl commands from a given dsl file and execute them using
+tensor data from the given tensor data file.
 """
 function execute_dsl_file(dsl_filename::String="contract_network.tl",
                           tensor_data_filename::String="tensor_data.h5",
