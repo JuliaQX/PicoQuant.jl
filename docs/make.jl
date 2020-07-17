@@ -1,9 +1,6 @@
 using Pkg
-Pkg.activate("..")
 using Documenter, PicoQuant
 
-# Ensure src dir is accessible
-push!(LOAD_PATH,"../src/")
 
 makedocs(
     modules = [PicoQuant],
@@ -18,4 +15,7 @@ makedocs(
             "Visualisation" => "visuals.md",
         ],
     ]
+)
+deploydocs(
+    repo = "github.com/ICHEC/PicoQuant.jl.git",
 )
