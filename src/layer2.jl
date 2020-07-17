@@ -30,7 +30,8 @@ function random_contraction_plan(network::TensorNetworkCircuit)
 end
 
 """
-    function full_wavefunction_contraction!(tn::TensorNetworkCircuit)
+    function full_wavefunction_contraction!(tn::TensorNetworkCircuit,
+                                            output_shape::Union{String, Array{<:Integer, 1}}="")
 
 Function to contract a network by first contracting input nodes together, to
 get the wavefunction representing the initial state, and then contracting
