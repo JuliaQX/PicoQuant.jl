@@ -32,7 +32,7 @@ TikzGraphs = "b4f28e30-c73f-5eaf-a395-8a9db949a742"
 TikzPictures = "37f6aa50-8035-52d0-81c2-5a1d08754b2d"
 
 [compat]
-ArgParse  = "1.1.0"
+ArgParse = "1.1.0"
 Cairo = "1.0.3"
 Compat = "3.12.0"
 Compose = "0.8.2"
