@@ -88,8 +88,14 @@ function full_wavefunction_contraction!(tn::TensorNetworkCircuit,
     end
 
 
-    # Reshape the final tensor if a shape is specified by the user.
+    # Permute the indices of the final tensor to have the correct order.
     output_tensor = Symbol("node_$(tn.counters["node"])")
+    node = tn.nodes[output_tensor]
+    order = [findfirst(x->x==ind, node.indices) for ind in tn.output_qubits]
+    node.indices[:] = tn.output_qubits[:]
+    permute_tensor(backend, output_tensor, order)
+
+    # Reshape the final tensor if a shape is specified by the user.
     if output_shape == "vector"
         vector_length = 2^length(tn.output_qubits)
         reshape_tensor(backend, output_tensor, vector_length)
