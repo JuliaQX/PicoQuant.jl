@@ -655,7 +655,7 @@ GATE_TENSORS[:H] = [1 1; 1 -1]/sqrt(2)
 GATE_TENSORS[:S] = [1 0; 0 1im]
 GATE_TENSORS[:T] = [1 0; 0 (1 + 1im)/sqrt(2)]
 
-GATE_TENSORS[:CX] = reshape([1 0 0 0; 0 1 0 0; 0 0 0 1; 0 0 1 0], 2, 2, 2, 2)
+GATE_TENSORS[:CX] = reshape([1 0 0 0; 0 0 0 1; 0 0 1 0; 0 1 0 0], 2, 2, 2, 2)
 GATE_TENSORS[:CZ] = reshape([1 0 0 0; 0 1 0 0; 0 0 1 0; 0 0 0 -1], 2, 2, 2, 2)
 GATE_TENSORS[:SWAP] = reshape([1 0 0 0; 0 0 1 0; 0 1 0 0; 0 0 0 1], 2, 2, 2, 2)
 
