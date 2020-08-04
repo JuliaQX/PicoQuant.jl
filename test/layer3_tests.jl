@@ -98,3 +98,25 @@ end
         tng.qubit_ordering == [2, 1, 3]
     end
 end
+
+
+@testset "Test add input/output functions" begin
+
+    tng = TensorNetworkCircuit(3)
+
+    # test that add_input function adds nodes
+    add_input!(tng, "000")
+    @test length(tng.nodes) == 3
+
+    # test that add_output function adds nodes
+    add_output!(tng, "000")
+    @test length(tng.nodes) == 6
+
+    # test that add_input function does not add nodes if already present
+    add_input!(tng, "000")
+    @test length(tng.nodes) == 6
+
+    # test that add_output function does not add nodes if already present
+    add_output!(tng, "000")
+    @test length(tng.nodes) == 6
+end

@@ -231,16 +231,22 @@ configuration
 function add_input!(network::TensorNetworkCircuit, config::String)
     @assert length(config) == network.number_qubits
     for (input_index, config_char) in zip(network.input_qubits, config)
-        node_label = new_label!(network, "node")
-        data_label = node_label
 
-        node_data = (config_char == '0') ? [1., 0.] : [0., 1.]
-        network.nodes[node_label] = Node([input_index], data_label)
+        # add guard to check if node does not already exist
+        if network.edges[input_index].src === nothing
+            node_label = new_label!(network, "node")
+            data_label = node_label
 
-        # Save the gate data to the executer
-        save_tensor_data(backend, node_label, data_label, node_data)
+            node_data = (config_char == '0') ? [1., 0.] : [0., 1.]
+            network.nodes[node_label] = Node([input_index], data_label)
 
-        network.edges[input_index].src = node_label
+            # Save the gate data to the executer
+            save_tensor_data(backend, node_label, data_label, node_data)
+
+            network.edges[input_index].src = node_label
+        else
+            @warn "Input node already exists"
+        end
     end
 end
 
@@ -255,16 +261,19 @@ function add_output!(network::TensorNetworkCircuit, config::String)
     for i in 1:network.number_qubits
         qubit_pos = network.qubit_ordering[i]
         output_index, config_char = network.output_qubits[qubit_pos], config[i]
-        node_label = new_label!(network, "node")
-        data_label = node_label
+        # add guard to check if node does not already exist
+        if network.edges[output_index].dst === nothing
+            node_label = new_label!(network, "node")
+            data_label = node_label
 
-        node_data = (config_char == '0') ? [1., 0.] : [0., 1.]
-        network.nodes[node_label] = Node([output_index], data_label)
+            node_data = (config_char == '0') ? [1., 0.] : [0., 1.]
+            network.nodes[node_label] = Node([output_index], data_label)
 
-        # Save the gate data to the executer
-        save_tensor_data(backend, node_label, data_label, node_data)
+            # Save the gate data to the executer
+            save_tensor_data(backend, node_label, data_label, node_data)
 
-        network.edges[output_index].dst = node_label
+            network.edges[output_index].dst = node_label
+        end
     end
 end
 
