@@ -1,7 +1,7 @@
 import Base.push!
 
 export AbstractBackend, DSLBackend, InteractiveBackend, save_tensor_data
-export backend, load_tensor_data
+export backend, load_tensor_data, save_output
 export push!
 
 backend = nothing
@@ -91,6 +91,7 @@ end
                                left_indices::Array{Int, 1},
                                right_indices::Array{Int, 1};
                                threshold::AbstractFloat=1e-13,
+                               max_rank::Integer=0,
                                left_label::Symbol,
                                right_label::Symbol)
 
@@ -101,6 +102,7 @@ function decompose_tensor!(nothing,
                            left_indices::Array{Int, 1},
                            right_indices::Array{Int, 1};
                            threshold::AbstractFloat=1e-13,
+                           max_rank::Integer=0,
                            left_label::Symbol,
                            right_label::Symbol)
     error("Please initialise a backend")
@@ -264,6 +266,7 @@ end
                                left_indices::Array{Int, 1},
                                right_indices::Array{Int, 1};
                                threshold::AbstractFloat=1e-13,
+                               max_rank::Integer=0,
                                left_label::Symbol,
                                right_label::Symbol)
 
@@ -274,12 +277,13 @@ function decompose_tensor!(backend::DSLBackend,
                            left_indices::Array{Int, 1},
                            right_indices::Array{Int, 1};
                            threshold::AbstractFloat=1e-13,
+                           max_rank::Integer=0,
                            left_label::Symbol,
                            right_label::Symbol)
     cmd_str = "decompose $tensor "
     cmd_str *= "$left_label " * join(left_indices, ",")
     cmd_str *= " $right_label " * join(right_indices, ",")
-    cmd_str *= " {\"threshold\":$threshold}"
+    cmd_str *= " {\"threshold\":$threshold, \"max_rank\":$max_rank}"
     push!(backend, cmd_str)
 end
 
@@ -400,6 +404,7 @@ end
                                left_positions::Array{Int, 1},
                                right_positions::Array{Int, 1};
                                threshold::AbstractFloat=1e-13,
+                               max_rank::Integer=0,
                                left_label::Symbol,
                                right_label::Symbol)
 
@@ -410,6 +415,7 @@ function decompose_tensor!(backend::InteractiveBackend,
                            left_positions::Array{Int, 1},
                            right_positions::Array{Int, 1};
                            threshold::AbstractFloat=1e-13,
+                           max_rank::Integer=0,
                            left_label::Symbol,
                            right_label::Symbol)
 
@@ -421,7 +427,8 @@ function decompose_tensor!(backend::InteractiveBackend,
     (B, C) = decompose_tensor(node_data,
                               left_positions,
                               right_positions,
-                              threshold=threshold)
+                              threshold=threshold,
+                              max_rank=max_rank)
 
     backend.tensors[left_label] = B
     backend.tensors[right_label] = C

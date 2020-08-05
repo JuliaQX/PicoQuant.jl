@@ -11,7 +11,7 @@ export convert_qiskit_circ_to_network, transpile_circuit
 export to_dict, to_json, network_from_dict, edge_from_dict, node_from_dict
 export network_from_json
 export inneighbours, outneighbours, virtualneighbours, neighbours
-export inedges, outedges
+export inedges, outedges, virtualedges
 export decompose_gate!
 export gate_tensor
 
@@ -374,6 +374,18 @@ function outedges(network::TensorNetworkCircuit,
                   node_label::Symbol)
     idxs = network.nodes[node_label].indices
     [x for x in idxs if !network.edges[x].virtual && network.edges[x].src == node_label]
+end
+
+"""
+    function virtualedges(network::TensorNetworkCircuit,
+                          node_label::Symbol)
+
+Function to get all virtual edges connected to the current node
+"""
+function virtualedges(network::TensorNetworkCircuit,
+                  node_label::Symbol)
+    idxs = network.nodes[node_label].indices
+    [x for x in idxs if network.edges[x].virtual]
 end
 
 # *************************************************************************** #

@@ -32,17 +32,17 @@
 
 # Name a test and select an appropriate image.
 # images comes from Docker hub
-test:1.3:
-  tags:
-    - docker
-
-  image: julia:1.3.1
-  <<: *test_definition
-
 test:1.4:
   tags:
     - docker
+
   image: julia:1.4.2
+  <<: *test_definition
+
+test:1.5:
+  tags:
+    - docker
+  image: julia:1.5.0
   <<: *test_definition
 
 

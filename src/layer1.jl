@@ -110,7 +110,7 @@ end
 Transpose a tensor by permuting the indices as specified in index_permutation.
 """
 function transpose_tensor(tensor::Array{<:Number},
-                   index_permutation::Array{<:Integer, 1})
+                           index_permutation::Array{<:Integer, 1})
     permutedims(tensor, index_permutation)
 end
 
@@ -126,7 +126,8 @@ end
 function decompose_tensor(tensor::Array{<:Number},
                           left_positions::Array{Int, 1},
                           right_positions::Array{Int, 1};
-                          threshold::AbstractFloat=1e-13)
+                          threshold::AbstractFloat=1e-13,
+                          max_rank::Integer=0)
 
     dims = size(tensor)
     left_dims = [dims[x] for x in left_positions]
@@ -140,6 +141,9 @@ function decompose_tensor(tensor::Array{<:Number},
 
     # find number of singular values above the threshold
     chi = sum(F.S .> threshold)
+    if max_rank > 0
+        chi = min(max_rank, chi)
+    end
     s = sqrt.(F.S[1:chi])
 
     # assume that singular values and basis of U and V matrices are sorted
@@ -228,7 +232,8 @@ function execute_dsl_file(dsl_filename::String="contract_network.tl",
             tensors[tensor_label] = permute_tensor(tensor, dims)
 
         elseif command[1] == "decompose"
-            A_label, B_label, B_idxs, C_label, C_idxs, options = command[2:end]
+            A_label, B_label, B_idxs, C_label, C_idxs = command[2:6]
+            options = join(command[7:end])
 
             A_label = Symbol(A_label)
             B_label = Symbol(B_label)
@@ -241,18 +246,11 @@ function execute_dsl_file(dsl_filename::String="contract_network.tl",
             # Contract A and B and save the result.
             A = tensors[A_label]
 
-            options = JSON.parse(options)
+            (B, C) = decompose_tensor(A,
+                                        B_idxs,
+                                        C_idxs;
+                                        JSON.parse(options, dicttype=Dict{Symbol, Any})...)
 
-            if haskey(options, "threshold")
-                (B, C) = decompose_tensor(A,
-                                          B_idxs,
-                                          C_idxs,
-                                          threshold=options["threshold"])
-            else
-                (B, C) = decompose_tensor(A,
-                                          B_idxs,
-                                          C_idxs)
-            end
             tensors[B_label] = B
             tensors[C_label] = C
         end
