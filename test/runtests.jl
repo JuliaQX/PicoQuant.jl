@@ -1,6 +1,8 @@
 using PicoQuant
-using Compat.Test
+using Test
 using TestSetExtensions
+
+include("test_utils.jl")
 
 @testset "All the tests" begin
     @includetests ARGS

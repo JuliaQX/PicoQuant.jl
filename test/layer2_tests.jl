@@ -1,4 +1,6 @@
 using HDF5
+using RandomMatrices
+using LinearAlgebra
 
 
 """
@@ -219,8 +221,8 @@ for (backend_name, backend_funcs) in pairs(backends)
 
                 # contract all links except the virtual and open edges
                 plan = [k for (k, v) in pairs(tn.edges) if !v.virtual &&
-                                                        v.src != nothing &&
-                                                        v.dst != nothing]
+                                                        v.src !== nothing &&
+                                                        v.dst !== nothing]
 
                 for edge in plan
                       contract_pair!(tn, edge)
@@ -262,4 +264,75 @@ for (backend_name, backend_funcs) in pairs(backends)
             end
         end
     end
+
+    @testset "Test decopmose with threshold option for backend $backend_name" begin
+        @test begin
+            try
+                backend_funcs[:init]()
+
+                # create distribution to sample from to get a random unitary matrix
+                dist = Haar(1)
+                d = 2
+                random_gate_data = reshape(rand(dist, d^2), (d, d, d, d))
+
+                tn = TensorNetworkCircuit(2)
+                add_gate!(tn, random_gate_data, [1, 2])
+
+                threshold = 1.0
+                # decompose gate between qubits with threshold of 1.0
+                new_nodes = decompose_tensor!(tn,
+                                              :node_1,
+                                              [:index_1, :index_3],
+                                              [:index_2, :index_4],
+                                              threshold=threshold)
+                save_output(backend, new_nodes[1], String(new_nodes[1]))
+
+                backend_funcs[:execute]()
+
+                # decompose gate data manually and check threshold was applied
+                F = svd(reshape(permutedims(random_gate_data, (1, 3, 2, 4)), (d^2, d^2)))
+
+                expected_dim = sum(F.S .> threshold)
+                virtual_bonds = virtualedges(tn, new_nodes[1])
+                bond_idx = findfirst(x -> x == virtual_bonds[1], tn.nodes[new_nodes[1]].indices)
+                size(load_tensor_data(backend, new_nodes[1]))[bond_idx] == expected_dim
+            finally
+                backend_funcs[:finalise]()
+            end
+        end
+
+        @testset "Test decopmose with max_rank option for backend $backend_name" begin
+            @test begin
+                try
+                    backend_funcs[:init]()
+
+                    # create distribution to sample from to get a random unitary matrix
+                    dist = Haar(1)
+                    d = 2
+                    random_gate_data = reshape(rand(dist, d^2), (d, d, d, d))
+
+                    tn = TensorNetworkCircuit(2)
+                    add_gate!(tn, random_gate_data, [1, 2])
+
+                    max_rank = 1
+                    # decompose gate between qubits with threshold of 1.0
+                    new_nodes = decompose_tensor!(tn,
+                                                :node_1,
+                                                [:index_1, :index_3],
+                                                [:index_2, :index_4],
+                                                max_rank=max_rank)
+                    save_output(backend, new_nodes[1], String(new_nodes[1]))
+
+                    backend_funcs[:execute]()
+
+                    virtual_bonds = virtualedges(tn, new_nodes[1])
+                    bond_idx = findfirst(x -> x == virtual_bonds[1], tn.nodes[new_nodes[1]].indices)
+                    size(load_tensor_data(backend, new_nodes[1]))[bond_idx] == max_rank
+                finally
+                    backend_funcs[:finalise]()
+                end
+            end
+        end
+    end
+
 end

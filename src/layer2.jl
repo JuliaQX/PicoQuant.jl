@@ -1,4 +1,5 @@
 import Random.shuffle
+using Logging
 
 export random_contraction_plan, inorder_contraction_plan
 export contraction_plan_to_json, contraction_plan_from_json
@@ -293,14 +294,19 @@ end
 """
     function compress_tensor_chain!(network::TensorNetworkCircuit,
                                     nodes::Array{Symbol, 1};
-                                    threshold::AbstractFloat=1e-13)
+                                    threshold::AbstractFloat=1e-13,
+                                    max_rank::Integer=0)
 
 Compress a chain of tensors by given by the array of symbols. This is achieved
-by peforming forward and backward sweeps of compressing each bond.
+by peforming forward and backward sweeps where of compression operations on each
+bond. Compression of each bond proceeds by discarding singular values and
+corresponding axes with singular values below the given threshold or values
+beyond the max_rank (max_rank zero corresponds to infinite rank)
 """
 function compress_tensor_chain!(network::TensorNetworkCircuit,
                                 nodes::Array{Symbol, 1};
-                                threshold::AbstractFloat=1e-13)
+                                threshold::AbstractFloat=1e-13,
+                                max_rank::Integer=0)
 
     # TODO: required that tensors in the chain only have virtual bonds between
     # consecutive tensors. Add a check that enforces this
@@ -318,7 +324,8 @@ function compress_tensor_chain!(network::TensorNetworkCircuit,
         decompose_tensor!(network, combined_node, left_indices, right_indices,
                           left_label=nodes[i],
                           right_label=nodes[i+1],
-                          threshold=threshold
+                          threshold=threshold,
+                          max_rank=max_rank
                          )
     end
 
@@ -335,7 +342,8 @@ function compress_tensor_chain!(network::TensorNetworkCircuit,
         decompose_tensor!(network, combined_node, left_indices, right_indices,
                           left_label=nodes[i],
                           right_label=nodes[i+1],
-                          threshold=threshold
+                          threshold=threshold,
+                          max_rank=max_rank
                          )
     end
 
@@ -347,6 +355,7 @@ end
                                left_indices::Array{Symbol, 1},
                                right_indices::Array{Symbol, 1};
                                threshold::AbstractFloat=1e-15,
+                               max_rank::Integer=0,
                                left_label::Union{Nothing, Symbol}=nothing,
                                right_label::Union{Nothing, Symbol}=nothing)
 
@@ -357,6 +366,7 @@ function decompose_tensor!(tng::TensorNetworkCircuit,
                            left_indices::Array{Symbol, 1},
                            right_indices::Array{Symbol, 1};
                            threshold::AbstractFloat=1e-14,
+                           max_rank::Integer=0,
                            left_label::Union{Nothing, Symbol}=nothing,
                            right_label::Union{Nothing, Symbol}=nothing)
 
@@ -366,8 +376,8 @@ function decompose_tensor!(tng::TensorNetworkCircuit,
     right_positions = [index_map[x] for x in right_indices]
 
     # plumb these nodes back into the graph and delete the original
-    B_label = (left_label == nothing) ? new_label!(tng, "node") : left_label
-    C_label = (right_label == nothing) ? new_label!(tng, "node") : right_label
+    B_label = (left_label === nothing) ? new_label!(tng, "node") : left_label
+    C_label = (right_label === nothing) ? new_label!(tng, "node") : right_label
     index_label = new_label!(tng, "index")
     B_node = Node(vcat(left_indices, [index_label,]), B_label)
     C_node = Node(vcat([index_label,], right_indices), C_label)
@@ -377,6 +387,7 @@ function decompose_tensor!(tng::TensorNetworkCircuit,
                       left_positions,
                       right_positions;
                       threshold=threshold,
+                      max_rank=max_rank,
                       left_label=B_label,
                       right_label=C_label)
 
@@ -410,13 +421,16 @@ end
 
 """
     function contract_mps_tensor_network_circuit(network::TensorNetworkCircuit;
-                                                 threshold::AbstractFloat=1e-13)
+                                                 max_bond::Integer=2,
+                                                 threshold::AbstractFloat=1e-13,
+                                                 max_rank::Integer=0)
 
 Contract a tensor network representing a quantum circuit using MPS techniques
 """
 function contract_mps_tensor_network_circuit!(network::TensorNetworkCircuit;
                                               max_bond::Integer=2,
-                                              threshold::AbstractFloat=1e-13)
+                                              threshold::AbstractFloat=1e-13,
+                                              max_rank::Integer=0)
     # identify the MPS nodes as the input nodes
     mps_nodes = [network.edges[x].src for x in network.input_qubits]
     @assert all([x != nothing for x in mps_nodes]) "Input qubit values must be set"
@@ -443,11 +457,11 @@ function contract_mps_tensor_network_circuit!(network::TensorNetworkCircuit;
         end
         mps_nodes[idx] = contract_pair!(network, input_node, node)
         if maximum(bond_counts) > max_bond
-            compress_tensor_chain!(network, mps_nodes)
+            compress_tensor_chain!(network, mps_nodes, threshold=threshold, max_rank=max_rank)
             bond_counts[:] .= 0
         end
     end
-    compress_tensor_chain!(network, mps_nodes)
+    compress_tensor_chain!(network, mps_nodes, threshold=threshold, max_rank=max_rank)
 
     # save the final mps tensors
     for (i, node) in enumerate(mps_nodes)
