@@ -25,5 +25,5 @@ catch
 end
 
 println("Installing required python packages using pip")
-run(`$(PyCall.python) $(proxy_arg) -m pip install --user --upgrade pip setuptools`)
-run(`$(PyCall.python) $(proxy_arg) -m pip install --user $(PACKAGES)`)
+run(`$(PyCall.python) $(proxy_arg) -m pip install --upgrade pip setuptools`)
+run(`$(PyCall.python) $(proxy_arg) -m pip install $(PACKAGES)`)
