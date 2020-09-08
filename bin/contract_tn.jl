@@ -14,20 +14,16 @@ Parse command line options and return argument dictionary
 function parse_commandline(ARGS)
     s = ArgParseSettings()
         @add_arg_table! s begin
-            "--tng", "-t"
-                help = "Tensor network json file to load"
+            "--dsl", "-f"
+                help = "Name of the dsl file to load"
                 required = true
-            "--plan", "-p"
-                help = "Contraction plan json file to load"
+            "--dsl_data", "-d"
+                help = "H5 file containing the tensor data"
                 required = true
             "--output", "-o"
-                help = "Output file to write contracted network to"
+                help = "H5 file to output data to"
                 arg_type = String
-                default = ""
-            "--indent"
-                help = "Indent to use in output json file"
-                arg_type = Int
-                default = 0
+                required = true
         end
         return parse_args(ARGS, s)
 end
@@ -35,35 +31,14 @@ end
 function main(ARGS)
     parsed_args = parse_commandline(ARGS)
 
-    tng_filename = parsed_args["tng"]
-    plan_filename = parsed_args["plan"]
+    dsl_filename = parsed_args["dsl"]
+    data_filename = parsed_args["dsl_data"]
+    output_filename = parsed_args["output"]
 
-    tng = nothing; plan = nothing
+    DSLBackend(dsl_filename, data_filename, output_filename)
 
-    # Load the network from file
-    open(tng_filename, "r") do io
-        tng = network_from_json(read(io, String))
-    end
-
-    # Load the contraction plan from file
-    open(plan_filename, "r") do io
-        plan = contraction_plan_from_json(read(io, String))
-    end
-
-    contract_network!(tng, plan)
-
-    if parsed_args["output"] == ""
-        filename = "$(splitext(tng_filename)[1])_contracted.json"
-    else
-        filename = parsed_args["output"]
-    end
-
-    # Write the contracted network to a file
-    open(filename, "w") do io
-        write(io, to_json(tng, parsed_args["indent"]))
-    end
+    execute_dsl_file(dsl_filename, data_filename, output_filename)
 end
-
 
 
 if abspath(PROGRAM_FILE) == @__FILE__

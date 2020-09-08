@@ -22,8 +22,14 @@ function parse_commandline(ARGS)
                 default = ""
             "--indent"
                 help = "Indent to use in output json file"
-                arg_type = Int
-                default = 0
+                action = :store_true
+            "--decompose"
+                help = "Decompose two qubit gates"
+                action = :store_true
+            "--transpile"
+                help = "Transpile circuit so gates only operate between neighbouring gates"
+                arg_type = Bool
+                default = false
         end
         return parse_args(ARGS,s)
 end
@@ -32,20 +38,29 @@ function main(ARGS)
     parsed_args = parse_commandline(ARGS)
 
     qasm_filename = parsed_args["qasm"]
-    circuit = load_qasm_as_circuit_from_file(qasm_filename)
-
-    tng = convert_qiskit_circ_to_network(circuit)
 
     if parsed_args["output"] == ""
-        filename = "$(splitext(qasm_filename)[1]).json"
+        filename_base = splitext(qasm_filename)[1]
     else
-        filename = parsed_args["output"]
+        filename_base = splitext(parsed_args["output"])[1]
     end
-    open(filename, "w") do io
-        write(io, to_json(tng, parsed_args["indent"]))
+
+    output_filename = "$(filename_base).json"
+    tl_filename = "$(filename_base).tl"
+    data_filename = "$(filename_base).h5"
+
+    # require a backend to save tensor data to
+    DSLBackend(tl_filename, data_filename)
+    circuit = load_qasm_as_circuit_from_file(qasm_filename)
+
+    tng = convert_qiskit_circ_to_network(circuit,
+                                         decompose=parsed_args["decompose"],
+                                         transpile=parsed_args["transpile"])
+
+    open(output_filename, "w") do io
+        write(io, to_json(tng, parsed_args["indent"] ? 2 : 0))
     end
 end
-
 
 
 if abspath(PROGRAM_FILE) == @__FILE__

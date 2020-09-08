@@ -123,21 +123,29 @@ mutable struct DSLBackend <: AbstractBackend
     output_data_filename::String
 
     function DSLBackend(dsl::String="contract_network.tl",
-                       tensor_data="tensor_data.h5"::String,
-                       output::String="")
-        # Create an empty dsl file.
-        close(open(dsl, "w"))
+                        tensor_data="tensor_data.h5"::String,
+                        output::String="", overwrite::Bool=false)
+        # Create an empty dsl file if none exists or overwrite is selected
+        if !isfile(dsl) || overwrite
+            close(open(dsl, "w"))
+        end
 
         # If no output filename given by the user, use the tensor data file
-        # to store output.
+        # to store output
         if output==""
             output = tensor_data
+        end
+
+        # empty the file if it exists
+        if !isfile(tensor_data) || overwrite
+            close(h5open(tensor_data, "w"))
         end
 
         global backend
         backend = new(dsl, tensor_data, output)
     end
 end
+
 
 """
     function push!(dsl::DSLBackend, instruction::String)
