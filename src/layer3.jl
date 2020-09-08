@@ -236,8 +236,13 @@ function add_input!(network::TensorNetworkCircuit, config::String)
         if network.edges[input_index].src === nothing
             node_label = new_label!(network, "node")
             data_label = node_label
+            
+            node_map = Dict('0' => [1., 0],
+                            '1' => [0., 1.],
+                            '+' => 1/sqrt(2)*[1., 1.],
+                            '-' => 1/sqrt(2)*[1., -1.])
 
-            node_data = (config_char == '0') ? [1., 0.] : [0., 1.]
+            node_data = node_map[config_char]
             network.nodes[node_label] = Node([input_index], data_label)
 
             # Save the gate data to the executer

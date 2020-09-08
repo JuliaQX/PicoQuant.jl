@@ -204,7 +204,9 @@ function execute_dsl_file(dsl_filename::String="contract_network.tl",
 
         elseif command[1] == "save"
             tensor_to_save = command[2]
-            output_data_filename = command[3]
+            if output_data_filename == ""
+                output_data_filename = command[3]
+            end
             group_name = command[4]
             save_tensor!(output_data_filename, tensors,
                          tensor_to_save, group_name)

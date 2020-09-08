@@ -19,21 +19,35 @@ function parse_commandline(ARGS)
                 help = "QASM file to load"
                 required = true
             "--output", "-o"
-                help = "Output file to write the contracted network to"
+                help = "Output file to write the contracted network structure to"
                 arg_type = String
-                default = ""
-            "--input-config", "-i"
-                help = "The input configuration to use (default is all 0's)"
+                required = true
+            "--output_data", "-d"
+                help = "Output file to write the contracted network data to"
                 arg_type = String
-                default = ""
-            "--output-config", "-a"
-                help = "Configuration to calculate amplitude for (default all)"
+                required = true
+            "--decompose"
+                help = "Decompose two qubit gates"
+                action = :store_true
+            "--transpile"
+                help = "Transpile circuit so gates only operate between neighbouring gates"
+                action = :store_true
+            "--method", "-m"
+                help = "The contraciton method to use (options, random, inorder, fullwf and mps, default fullwf)"
                 arg_type = String
-                default = ""
+                default = "fullwf"
             "--indent"
                 help = "Indent to use in output json file"
-                arg_type = Int
-                default = 0
+                action = :store_true
+            "--input_config", "-c"
+                help = "The starting configuration as a string of 0, 1, +, -. Default is all zeros"
+                arg_type = String
+                default = ""
+            "--work_dir", "-w"
+                help = "Folder to keep temporary files, if non given will use current folder"
+                arg_type = String
+                default = ""
+
         end
         return parse_args(ARGS, s)
 end
@@ -41,36 +55,44 @@ end
 function main(ARGS)
     parsed_args = parse_commandline(ARGS)
 
-    # Load the circuit from the given qasm file.
-    qasm_filename = parsed_args["qasm"]
-    circuit = load_qasm_as_circuit_from_file(qasm_filename)
-    tng = convert_qiskit_circ_to_network(circuit)
+    work_dir = parsed_args["work_dir"] == "" ? "." : parsed_args["work_dir"]
+    isdir(work_dir) || mkdir(work_dir)
 
-    if parsed_args["input-config"] == ""
+    # prepend work files with work folder path
+    qasm_filename = parsed_args["qasm"]
+    filename_base = splitext(qasm_filename)[1]
+    tl_filename = joinpath(work_dir, "$(filename_base).tl")
+    data_filename = joinpath(work_dir, "$(filename_base).h5")
+
+    # require a backend to save tensor data to
+    DSLBackend(tl_filename, data_filename)
+    circuit = load_qasm_as_circuit_from_file(qasm_filename)
+    tng = convert_qiskit_circ_to_network(circuit,
+                                         decompose=parsed_args["decompose"],
+                                         transpile=parsed_args["transpile"])
+
+    if parsed_args["input_config"] == ""
         add_input!(tng, "0"^tng.number_qubits)
     else
-        @assert length(parsed_args["input-config"]) == tng.number_qubits
-        add_input!(tng, parsed_args["input-config"])
+        @assert length(parsed_args["input_config"]) == tng.number_qubits
+        add_input!(tng, parsed_args["input_config"])
     end
 
-    if parsed_args["output-config"] != ""
-        @assert length(parsed_args["output-config"]) == tng.number_qubits
-        add_output!(tng, parsed_args["output-config"])
+    method = parsed_args["method"]
+    if method == "fullwf"
+        full_wavefunction_contraction!(tng)
+    elseif method == "mps"
+        contract_mps_tensor_network_circuit!(tng)
+    elseif method == "inorder"
+        contract_network!(tng, inorder_contraction_plan(tng))
+    elseif method == "random"
+        contract_network!(tng, random_contraction_plan(tng))
     end
 
-    # Get a contraction plan and contract the network.
-    plan = random_contraction_plan(tng)
+    execute_dsl_file(tl_filename, data_filename, parsed_args["output_data"])
 
-    contract_network!(tng, plan)
-
-    # Write the contracted network to a json file.
-    if parsed_args["output"] == ""
-        filename = "$(splitext(qasm_filename)[1])_contracted.json"
-    else
-        filename = parsed_args["output"]
-    end
-    open(filename, "w") do io
-        write(io, to_json(tng, parsed_args["indent"]))
+    open(parsed_args["output"], "w") do io
+        write(io, to_json(tng, parsed_args["indent"] ? 2 : 0))
     end
 end
 
