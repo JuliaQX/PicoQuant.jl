@@ -49,11 +49,9 @@ function main(ARGS)
     tl_filename = "$(filename_base).tl"
     data_filename = "$(filename_base).h5"
 
-    # require a backend to save tensor data to
-    DSLBackend(tl_filename, data_filename)
     circuit = load_qasm_as_circuit_from_file(qasm_filename)
 
-    tng = convert_qiskit_circ_to_network(circuit,
+    tng = convert_qiskit_circ_to_network(circuit, DSLBackend(tl_filename, data_filename),
                                          decompose=parsed_args["decompose"],
                                          transpile=parsed_args["transpile"])
 

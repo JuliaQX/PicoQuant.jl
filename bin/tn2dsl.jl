@@ -50,20 +50,19 @@ function main(ARGS)
     tn_json = open(tng_filename, "r") do io
         read(io, String)
     end
-    tng = network_from_json(tn_json)
     
     dsl_prefix = parsed_args["dsl"]
     dsl_output = "$(dsl_prefix).tl"
     data_output = "$(dsl_prefix).h5"
 
-    DSLBackend(dsl_output, data_output, "", true)
+    tng = network_from_json(tn_json, DSLBackend(dsl_output, data_output, "", true))
     
     # add tensors to DSL backend
     h5open(tng_data_filename, "r") do file        
         for node_label in keys(tng.nodes)
             node_label_str = String(node_label)
             data = read(file, node_label_str)
-            save_tensor_data(backend, node_label, node_label, data)
+            save_tensor_data(tng, node_label, node_label, data)
         end
     end
 

@@ -9,8 +9,7 @@ using HDF5
                   cx q[1],q[2];"""
 
     circ = load_qasm_as_circuit(qasm_str)
-    DSLBackend()
-    tng = convert_qiskit_circ_to_network(circ)
+    tng = convert_qiskit_circ_to_network(circ, DSLBackend())
     add_input!(tng, "000")
     add_output!(tng, "000")
     plan = random_contraction_plan(tng)

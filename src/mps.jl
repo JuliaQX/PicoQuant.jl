@@ -39,7 +39,7 @@ function MPSState(network::TensorNetworkCircuit, mps_nodes::Array{Symbol, 1})
                         output_position)
                     )
         tensor = permutedims(
-                    load_tensor_data(backend, node_label),
+                    load_tensor_data(network, node_label),
                                      (output_position, other_positions...))
         nodes[i] = Node(network.nodes[node_label].indices[[other_positions...]],
                         Symbol("n_$i"))

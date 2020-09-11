@@ -52,6 +52,10 @@ end
 
 """Struct for tensor network graph of a circuit"""
 struct TensorNetworkCircuit
+    # Backend used to store tensors
+    #FIXME: This should be parameterised, along with the TensorNetworkCircuit
+    backend::AbstractBackend
+
     number_qubits::Integer
 
     # Reference to indices connecting to input qubits
@@ -76,12 +80,12 @@ struct TensorNetworkCircuit
 end
 
 """
-    function TensorNetworkCircuit(qubits::Integer)
+    function TensorNetworkCircuit(qubits::Int, backend::AbstractBackend=InteractiveBackend())
 
 Outer constructor to create an instance of TensorNetworkCircuit for an empty
 circuit with the given number of qubits.
 """
-function TensorNetworkCircuit(qubits::Integer)
+function TensorNetworkCircuit(qubits::Integer, backend::AbstractBackend=InteractiveBackend())
     # Create labels for edges of the network connecting input to output qubits
     index_labels = [Symbol("index_", i) for i in 1:qubits]
 
@@ -101,9 +105,115 @@ function TensorNetworkCircuit(qubits::Integer)
     counters["node"] = 0
 
     # Create the tensor network
-    TensorNetworkCircuit(qubits, input_indices, output_indices, nodes,
+    TensorNetworkCircuit(backend, qubits, input_indices, output_indices, nodes,
                          edges, collect(1:qubits), counters)
 end
+
+# *************************************************************************** #
+#                  TensorNetworkCircuit backend functions
+# *************************************************************************** #
+
+"""
+    function save_tensor_data(network::TensorNetworkCircuit,
+                              tensor_label::Symbol,
+                              tensor_data::Array{<:Number})
+
+Function to save tensor data to a dictionary in the network's backend.
+"""
+function save_tensor_data(network::TensorNetworkCircuit,
+                          node_label::Symbol,
+                          tensor_label::Symbol,
+                          tensor_data::Array{<:Number})
+    save_tensor_data(network.backend, node_label, tensor_label, tensor_data)
+end
+
+"""
+    function load_tensor_data(network::TensorNetworkCircuit,
+                              tensor_label::Symbol)
+
+Function to load tensor data from backend storage (if present)
+"""
+function load_tensor_data(network::TensorNetworkCircuit,
+                          tensor_label::Symbol)
+    load_tensor_data(network.backend, tensor_label)
+end
+
+"""
+    function contract_tensors(network::TensorNetworkCircuit,
+                              A_label::Symbol, A_ncon_indices::Array{<:Integer, 1},
+                              B_label::Symbol, B_ncon_indices::Array{<:Integer, 1},
+                              C_label::Symbol)
+
+Function to contract two tensors A and B to create a tensor C.
+"""
+function contract_tensors(network::TensorNetworkCircuit,
+                          A_label::Symbol, A_ncon_indices::Array{<:Integer, 1},
+                          B_label::Symbol, B_ncon_indices::Array{<:Integer, 1},
+                          C_label::Symbol)
+    contract_tensors(network.backend, A_label, A_ncon_indices, B_label, B_ncon_indices, C_label)
+end
+
+"""
+    function save_output(network::TensorNetworkCircuit, node::Symbol, name::String)
+
+Function to save the result of fully contracting a network under the given
+name.
+"""
+function save_output(network::TensorNetworkCircuit,
+                     node::Symbol, name::String="result")
+    save_output(network.backend, node, name)
+end
+
+"""
+    function reshape_tensor(network::TensorNetworkCircuit, tensor::Symbol, shape)
+
+Function to reshape a given tensor.
+"""
+function reshape_tensor(network::TensorNetworkCircuit,
+                        tensor::Symbol,
+                        shape::Union{Array{<:Integer, 1}, Integer})
+    reshape_tensor(network.backend, tensor, shape)
+end
+
+"""
+    function permute_tensor(network::TensorNetworkCircuit, tensor::Symbol, axes)
+
+Function to permute the axes of the given tensor
+"""
+function permute_tensor(network::TensorNetworkCircuit,
+                        tensor::Symbol,
+                        axes::Array{<:Integer, 1})
+    permute_tensor(network.backend, tensor, axes)
+end
+
+"""
+    function decompose_tensor!(network::TensorNetworkCircuit
+                               tensor::Symbol,
+                               left_positions::Array{Int, 1},
+                               right_positions::Array{Int, 1};
+                               threshold::AbstractFloat=1e-13,
+                               max_rank::Integer=0,
+                               left_label::Symbol,
+                               right_label::Symbol)
+
+Function to decompose a single tensor into two tensors
+"""
+function decompose_tensor!(network::TensorNetworkCircuit,
+                           tensor::Symbol,
+                           left_positions::Array{Int, 1},
+                           right_positions::Array{Int, 1};
+                           threshold::AbstractFloat=1e-13,
+                           max_rank::Integer=0,
+                           left_label::Symbol,
+                           right_label::Symbol)
+    decompose_tensor!(network.backend, tensor, left_positions, right_positions;
+                      threshold = threshold, max_rank = max_rank,
+                      left_label = left_label, right_label = right_label)
+end
+
+# *************************************************************************** #
+#                  TensorNetworkCircuit mutation functions
+# *************************************************************************** #
 
 """
     function new_label!(network::TensorNetworkCircuit, label_str)
@@ -158,7 +268,7 @@ function add_gate!(network::TensorNetworkCircuit,
             network.nodes[node_label] = new_node
 
             # Save the gate data to the executer
-            save_tensor_data(backend, node_label, data_label, gates_data[i])
+            save_tensor_data(network, node_label, data_label, gates_data[i])
 
             input_index = input_indices[i]
             output_index = output_indices[i]
@@ -188,7 +298,7 @@ function add_gate!(network::TensorNetworkCircuit,
         network.nodes[node_label] = new_node
 
         # Save the gate data to the executer
-        save_tensor_data(backend, node_label, data_label, gate_data)
+        save_tensor_data(network, node_label, data_label, gate_data)
 
         # remap nodes that edges are connected to
         for qubit in 1:length(input_indices)
@@ -246,7 +356,7 @@ function add_input!(network::TensorNetworkCircuit, config::String)
             network.nodes[node_label] = Node([input_index], data_label)
 
             # Save the gate data to the executer
-            save_tensor_data(backend, node_label, data_label, node_data)
+            save_tensor_data(network, node_label, data_label, node_data)
 
             network.edges[input_index].src = node_label
         else
@@ -275,7 +385,7 @@ function add_output!(network::TensorNetworkCircuit, config::String)
             network.nodes[node_label] = Node([output_index], data_label)
 
             # Save the gate data to the executer
-            save_tensor_data(backend, node_label, data_label, node_data)
+            save_tensor_data(network, node_label, data_label, node_data)
 
             network.edges[output_index].dst = node_label
         end
@@ -465,18 +575,18 @@ function transpile_circuit(circ,
 end
 
 """
-    function convert_qiskit_circ_to_network(circ;
+    function convert_qiskit_circ_to_network(circ, backend::AbstractBackend=InteractiveBackend();
                                             decompose::Bool=false,
                                             transpile::Bool=false)
 
 Given a qiskit circuit object, this function will convert this to a tensor
-network circuit. If the decompose option is true it will decompose two qubit
-gates to two tensors acting on each qubit with a virtual bond connecting them.
-The transpile option will transpile the circuit using the basicswap pass
-from qiskit to ensure that two qubit gates are only applied between neighbouring
-qubits.
+network circuit with a backend set to `backend`. If the decompose option is
+true it will decompose two qubit gates to two tensors acting on each qubit
+with a virtual bond connecting them. The transpile option will transpile the
+circuit using the basicswap pass from qiskit to ensure that two qubit gates
+are only applied between neighbouring qubits.
 """
-function convert_qiskit_circ_to_network(circ;
+function convert_qiskit_circ_to_network(circ, backend::AbstractBackend=InteractiveBackend();
                                         decompose::Bool=false,
                                         transpile::Bool=false)
     barrier = pyimport("qiskit.extensions.standard.barrier")
@@ -488,7 +598,7 @@ function convert_qiskit_circ_to_network(circ;
         qubit_ordering = collect(1:n_qubits)
     end
 
-    tng = TensorNetworkCircuit(n_qubits)
+    tng = TensorNetworkCircuit(n_qubits, backend)
     tng.qubit_ordering[:] = qubit_ordering[:]
     for gate in circ.data
         # If the gate is a barrier then skip it
@@ -575,11 +685,11 @@ function to_dict(network::TensorNetworkCircuit)
 end
 
 """
-    function network_from_dict(dict::Dict{String, Any})
+    function network_from_dict(dict::Dict{String, Any}, backend::AbstractBackend=InteractiveBackend())
 
-Convert a dictionary to a tensor network
+Convert a dictionary to a tensor network with a given backend (default: InteractiveBackend)
 """
-function network_from_dict(dict::AbstractDict{String, Any})
+function network_from_dict(dict::AbstractDict{String, Any}, backend::AbstractBackend=InteractiveBackend())
     number_qubits = dict["number_qubits"]
     # initialise counters
     counters = Dict("index" => 0, "node" => 0)
@@ -603,7 +713,7 @@ function network_from_dict(dict::AbstractDict{String, Any})
     output_qubits = [Symbol(x) for x in dict["output_qubits"]]
     qubit_ordering = dict["qubit_ordering"]
 
-    TensorNetworkCircuit(number_qubits, input_qubits, output_qubits, nodes,
+    TensorNetworkCircuit(backend, number_qubits, input_qubits, output_qubits, nodes,
                          edges, qubit_ordering, counters)
 end
 
@@ -624,13 +734,13 @@ function to_json(tng::TensorNetworkCircuit, indent::Integer=0)
 end
 
 """
-    function network_from_json(json_str::String)
+    function network_from_json(json_str::String, backend::AbstractBackend=InteractiveBackend())
 
 Convert a json string to a tensor network
 """
-function network_from_json(json_str::String)
+function network_from_json(json_str::String, backend::AbstractBackend=InteractiveBackend())
     dict = JSON.parse(json_str, dicttype=OrderedDict)
-    network_from_dict(dict)
+    network_from_dict(dict, backend)
 end
 
 """
