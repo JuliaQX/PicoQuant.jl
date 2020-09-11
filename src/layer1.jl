@@ -1,6 +1,6 @@
-export load_tensor!, save_tensor!, delete_tensor!, contract_tensors
+export load_tensor!, save_tensor!, delete_tensor!, contract_tensors, view!
 export reshape_tensor, transpose_tensor, conjugate_tensor, execute_dsl_file
-export decompose_tensor, permute_tensor
+export decompose_tensor, permute_tensor, tensor_view
 
 using TensorOperations, HDF5
 using JSON
@@ -111,7 +111,7 @@ end
 Transpose a tensor by permuting the indices as specified in index_permutation.
 """
 function transpose_tensor(tensor::Array{<:Number},
-                           index_permutation::Array{<:Integer, 1})
+                        index_permutation::Array{<:Integer, 1})
     permutedims(tensor, index_permutation)
 end
 
@@ -154,6 +154,17 @@ function decompose_tensor(tensor::Array{<:Number},
 
     B, C
 end
+
+"""
+    function tensor_view(node_data, bond_idx, bond_range)
+
+Create a view on the given tensor
+"""
+function tensor_view(node_data, bond_idx, bond_range)
+    dims = size(node_data)
+    node_data[[i == bond_idx ? bond_range : UnitRange(1, dims[i]) for i in 1:length(dims)]...]
+end
+
 
 
 # *************************************************************************** #
@@ -213,15 +224,17 @@ function execute_dsl_file(dsl_filename::String="contract_network.tl",
                          tensor_to_save, group_name)
 
         elseif command[1] == "reshape"
-            tensor_label, dims = command[2:end]
+            tensor_label, groups = command[2:end]
             tensor_label = Symbol(tensor_label)
             tensor = tensors[tensor_label]
+            tensor_dims = size(tensor)
 
-            # Convert dimensions into integer array for reshaping.
-            dims = parse.(Int, split(dims, ","))
+            # Convert the groups of indices to array of arrays
+            groups = [parse.(Int, split(x, ",")) for x in split(groups, ";")]
+            new_dims = [prod([tensor_dims[y] for y in x]) for x in groups]
 
             # Reshape the tensor.
-            tensors[tensor_label] = reshape_tensor(tensor, dims)
+            tensors[tensor_label] = reshape_tensor(tensor, new_dims)
 
         elseif command[1] == "permute"
             tensor_label, dims = command[2:end]
@@ -256,6 +269,15 @@ function execute_dsl_file(dsl_filename::String="contract_network.tl",
 
             tensors[B_label] = B
             tensors[C_label] = C
+        elseif command[1] == "view"
+            view_label, node_label, bond_idx, bond_range = command[2, 5]
+
+            view_label = Symbol(view_label)
+            node_label = Symbol(node_label)
+            bond_idx = parse(Int, bond_idx)
+            bond_range = parse.(Int, split(bond_range, ","))
+
+            tensors[view_label] = tensor_view(tensors[node_label], bond_idx, bond_range)
         end
     end
 

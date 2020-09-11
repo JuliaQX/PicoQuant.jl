@@ -1,23 +1,86 @@
 import Random.shuffle
 using Logging
 
-export random_contraction_plan, inorder_contraction_plan
-export contraction_plan_to_json, contraction_plan_from_json
+export random_contraction_plan, inorder_contraction!
 export contract_pair!, contract_network!, full_wavefunction_contraction!
 export compress_tensor_chain!, decompose_tensor!
 export contract_mps_tensor_network_circuit!
 export calculate_mps_amplitudes!
 
+include("layer2/slicing.jl")
+
 using HDF5
 
-"""
-    function inorder_contraction_plan(network::TensorNetworkCircuit)
 
-Function to return contraction plan by order of indices
+function merge_common_bonds!(network::TensorNetworkCircuit, a_label::Symbol, b_label::Symbol)
+    a = network.nodes[a_label]
+    b = network.nodes[b_label]
+    a_common_indices = findall(x -> x in b.indices, a.indices)
+    common_edges = a.indices[a_common_indices]
+    if length(a_common_indices) > 1
+        a_remaining_indices = findall(x -> !(x in b.indices), a.indices)
+        permute_tensor(network, a_label, vcat(a_remaining_indices, a_common_indices))
+        
+        b_common_indices = findall(x -> x in a.indices, b.indices)
+        b_remaining_indices = findall(x -> !(x in a.indices), b.indices)        
+        permute_tensor(network, b_label, vcat(b_remaining_indices, b_common_indices))
+
+        new_edge = new_label!(network, "index")
+        network.nodes[a_label] = Node(vcat(a.indices[a_remaining_indices], [new_edge]), a_label)
+        network.nodes[b_label] = Node(vcat(b.indices[b_remaining_indices], [new_edge]), b_label)        
+
+        l, m = length(a_remaining_indices), length(a_common_indices)
+        groups = [map(x -> [x], 1:l)..., collect((l+1):l+m)]
+        reshape_tensor(network, a_label, groups)
+
+        l, m = length(b_remaining_indices), length(b_common_indices)
+        groups = [map(x -> [x], 1:l)..., collect((l+1):l+m)]
+        reshape_tensor(network, b_label, groups)
+
+        network.edges[new_edge] = Edge(a_label, b_label, nothing, true)
+        for common_edge in common_edges
+            delete!(network.edges, common_edge)
+        end
+    end
+end
+
 """
-function inorder_contraction_plan(network::TensorNetworkCircuit)
-    [x for (x, y) in pairs(edges(network)) if y.src != nothing
-                                           && y.dst != nothing]
+    function inorder_contraction!(network::TensorNetworkCircuit)
+
+Function to contract the network in order starting from input nodes
+"""
+function inorder_contraction!(network::TensorNetworkCircuit)
+    layer_nodes = Dict{Int64, Array{Symbol,1}}()
+    for (k, v) in pairs(network.node_layers)
+        if haskey(layer_nodes, v)
+            push!(layer_nodes[v], k)
+        else
+            layer_nodes[v] = [k]
+        end
+    end
+
+    gate_layers = [k for k in sort(collect(keys(layer_nodes))) if k > 0]
+    if haskey(layer_nodes, -1)
+        gate_layers = vcat(gate_layers, [-1])
+    end
+
+    for layer in gate_layers
+        nodes = layer_nodes[layer]
+        new_nodes = Array{Symbol, 1}(undef, length(nodes))
+        for (i, node) in enumerate(nodes)
+            in_nodes = unique(inneighbours(network, node))
+            for in_node in in_nodes
+                node = contract_pair!(network, in_node, node)                
+            end
+            new_nodes[i] = node
+        end
+        # merge multiple virtual bonds if present
+        for (x, y) in Iterators.product(new_nodes, new_nodes)
+            if y > x
+                merge_common_bonds!(network, x, y)                
+            end
+        end
+    end
 end
 
 """
@@ -26,7 +89,7 @@ end
 Function to create a random contraction plan
 """
 function random_contraction_plan(network::TensorNetworkCircuit)
-    closed_edges = inorder_contraction_plan(network)
+    closed_edges = [k for (k, v) in pairs(network.edges) if v.src !== nothing && v.dst !== nothing]
     shuffle(closed_edges)
 end
 
@@ -55,39 +118,31 @@ function full_wavefunction_contraction!(network::TensorNetworkCircuit,
         wf = contract_pair!(network, wf, wfi)
     end
 
-    # While there's more than one node in the network, contract all other nodes
-    # connected to the wavefunction into the wavefunction node.
-    while length(network.nodes) > 1
-
-        # Contract the wavefunction with each of its neighbours.
-        for neighbour in outneighbours(network, wf)
-
-            # Skip this node if it was already contracted into the wavefunction
-            # (and so no longer in tn.nodes). This happens when multiple edges
-            # point from the wavefunction to the same node.
-            if !(neighbour in keys(network.nodes))
-                continue
-            end
-            neighbour_node = network.nodes[neighbour]
-
-            # If the next node to be contracted into the wavefunction has an
-            # edge whose src is something other then the wf or itself, then
-            # some other node of the circuit should be contracted into wf before
-            # this one.
-            skip = false
-            for index in neighbour_node.indices
-                e = network.edges[index]
-                if !(e.src in [wf, neighbour])
-                    skip = true
-                    break
-                end
-            end
-            if !skip
-                wf = contract_pair!(network, wf, neighbour)
-            end
+    layer_nodes = Dict{Int64, Array{Symbol,1}}()
+    for (k, v) in pairs(network.node_layers)
+        if haskey(layer_nodes, v)
+            push!(layer_nodes[v], k)
+        else
+            layer_nodes[v] = [k]
         end
     end
 
+    gate_layers = [k for k in sort(collect(keys(layer_nodes))) if k > 0]
+    if haskey(layer_nodes, -1)
+        gate_layers = vcat(gate_layers, [-1])
+    end
+    for layer in gate_layers
+        nodes = layer_nodes[layer]
+
+        # contract nodes in the layer and then contract with the wf vector
+        n = nodes[1]
+        if length(nodes) > 1
+            for n2 in nodes[2:end]
+                n = contract_pair!(network, n, n2)
+            end
+        end
+        wf = contract_pair!(network, wf, n)
+    end
 
     # Permute the indices of the final tensor to have the correct order.
     output_tensor = Symbol("node_$(network.counters["node"])")
@@ -98,9 +153,8 @@ function full_wavefunction_contraction!(network::TensorNetworkCircuit,
         permute_tensor(network, output_tensor, order)
 
         # Reshape the final tensor if a shape is specified by the user.
-        if output_shape == "vector"
-            vector_length = 2^length(network.output_qubits)
-            reshape_tensor(network, output_tensor, vector_length)
+        if output_shape == "vector"            
+            reshape_tensor(network, output_tensor, [collect(1:length(node.indices))])
         elseif output_shape != ""
             reshape_tensor(network, output_tensor, output_shape)
         end
@@ -110,24 +164,6 @@ function full_wavefunction_contraction!(network::TensorNetworkCircuit,
     save_output(network, output_tensor)
 end
 
-
-"""
-    function contraction_plan_to_json(plan::Array)
-
-Function to serialise the contraction plan to json format
-"""
-function contraction_plan_to_json(plan::Array{Symbol})
-    JSON.json(plan)
-end
-
-"""
-    function contraction_plan_from_json(str::String)
-
-Function to deserialize the contraction plan from a json string
-"""
-function contraction_plan_from_json(str::String)
-    [Symbol(x) for x in JSON.parse(str)]
-end
 
 # *************************************************************************** #
 #                  Functions to contract a tensor network
@@ -176,7 +212,7 @@ end
 """
     function contract_network!(network::TensorNetworkCircuit,
                                plan::Array{Symbol, 1},
-                               output_shape::Union{String, Array{<:Integer, 1}})
+                               output_shape::Union{String, Array{<:Array{<:Integer, 1}, 1})
 
 Function to contract the given network according to the given contraction plan.
 The resulting tensor will be given the shape described by 'output_shape'.
@@ -199,9 +235,8 @@ function contract_network!(network::TensorNetworkCircuit,
 
     # Reshape the final tensor if a shape is specified by the user.
     output_tensor = Symbol("node_$(network.counters["node"])")
-    if output_shape == "vector"
-        vector_length = 2^length(network.output_qubits)
-        reshape_tensor(network, output_tensor, vector_length)
+    if output_shape == "vector"    
+        reshape_tensor(network, output_tensor, [collect(1:length(network.output_qubits))])
 
     elseif output_shape != ""
         reshape_tensor(network, output_tensor, output_shape)
@@ -280,7 +315,7 @@ function contract_pair!(network::TensorNetworkCircuit,
     delete!(network.nodes, A_label)
     delete!(network.nodes, B_label)
 
-    # Get the backend to contract the tensors
+    # Call lower level function to perform contraction on tensors
     contract_tensors(network, A_label, A_ncon_indices,
                      B_label, B_ncon_indices, C_label)
 
@@ -433,29 +468,49 @@ function contract_mps_tensor_network_circuit!(network::TensorNetworkCircuit;
                                               max_rank::Integer=0)
     # identify the MPS nodes as the input nodes
     mps_nodes = [network.edges[x].src for x in network.input_qubits]
-    @assert all([x != nothing for x in mps_nodes]) "Input qubit values must be set"
+    @assert all([x !== nothing for x in mps_nodes]) "Input qubit values must be set"
 
     # identify the MPS nodes as the input nodes
     qubits = length(network.input_qubits)
     mps_nodes = [network.edges[x].src for x in network.input_qubits]
-    @assert all([x != nothing for x in mps_nodes]) "Input qubit values must be set"
+    @assert all([x !== nothing for x in mps_nodes]) "Input qubit values must be set"
 
-    gate_nodes = setdiff(collect(keys(network.nodes)), mps_nodes)
-    bond_counts = zeros(Int, qubits-1)
-    for node in gate_nodes
-        # find the input node to connect to it
-        input_node = inneighbours(network, node)[1]
-        @assert input_node in mps_nodes "$input_node not in mps nodes"
-        idx = findfirst(x -> x == input_node, mps_nodes)
-        if length(virtualneighbours(network, node)) > 0
-            for vn in virtualneighbours(network, node)
-                if vn in mps_nodes
-                    vn_idx = findfirst(x -> x == vn, mps_nodes)
-                    bond_counts[min(vn_idx, idx)] += 1
-                end
-            end
+    layer_nodes = Dict{Int64, Array{Symbol,1}}()
+    for (k, v) in pairs(network.node_layers)
+        if haskey(layer_nodes, v)
+            push!(layer_nodes[v], k)
+        else
+            layer_nodes[v] = [k]
         end
-        mps_nodes[idx] = contract_pair!(network, input_node, node)
+    end
+
+    gate_layers = [k for k in sort(collect(keys(layer_nodes))) if k > 0]
+    if haskey(layer_nodes, -1)
+        gate_layers = vcat(gate_layers, [-1])
+    end
+
+    # gate_nodes = setdiff(collect(keys(network.nodes)), mps_nodes)
+    bond_counts = zeros(Int, qubits-1)
+    for gate_layer in gate_layers
+        nodes = layer_nodes[gate_layer]
+
+        updated_indices = Array{Int64, 1}(undef, length(nodes))
+        for (i, node) in enumerate(nodes)
+            # find the input node to connect to it
+            input_node = inneighbours(network, node)[1]
+            @assert input_node in mps_nodes "$input_node not in mps nodes"
+
+            idx = findfirst(x -> x == input_node, mps_nodes)
+            mps_nodes[idx] = contract_pair!(network, input_node, node)
+            updated_indices[i] = idx
+         end
+
+        sort!(updated_indices)
+        for i in 1:(length(updated_indices)-1)
+            @assert (updated_indices[i+1] -  updated_indices[i]) == 1 "Gates between non-neighboring qubits"
+            bond_counts[updated_indices[i]] += 1
+        end
+
         if maximum(bond_counts) > max_bond
             compress_tensor_chain!(network, mps_nodes, threshold=threshold, max_rank=max_rank)
             bond_counts[:] .= 0
@@ -485,6 +540,6 @@ function calculate_mps_amplitudes!(network::TensorNetworkCircuit,
         output_node = contract_pair!(network, output_node, node)
     end
     permute_tensor(network, output_node, network.qubit_ordering)
-    reshape_tensor(network, output_node, 2^length(mps_nodes))
+    reshape_tensor(network, output_node, [collect(1:length(mps_nodes))])
     save_output(network, output_node, result)
 end

@@ -16,7 +16,7 @@ function create_graph(tng::TensorNetworkCircuit)
     # Find starting nodes and edges
     # Criteria
     # 1. Edges with nothing as source for case with no input nodes
-    input_edges = [k for (k, v) in pairs(tng.edges) if v.src == nothing]
+    input_edges = [k for (k, v) in pairs(tng.edges) if v.src === nothing]
     # 2. Nodes with only outgoing edges where input nodes or contracted nodes
     source_nodes = [x for x in keys(tng.nodes) if length(inedges(tng, x)) == 0]
 
@@ -55,7 +55,7 @@ function create_graph(tng::TensorNetworkCircuit)
             get_vertex = x -> haskey(vertex_map, x) ? vertex_map[x] : nothing
             bs = get_vertex(tng.edges[bond].src)
             bd = get_vertex(tng.edges[bond].dst)
-            if bs != nothing && bd != nothing
+            if bs !== nothing && bd !== nothing
                 MetaGraphs.add_edge!(g, bs, bd)
                 MetaGraphs.set_prop!(g, bs, bd, :label, String(bond))
             end

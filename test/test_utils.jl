@@ -1,8 +1,8 @@
 using PyCall
 
-# *************************************************************************** #
-#           Some utility functions to help with testing
-# *************************************************************************** #
+
+# Some utility functions to help with testing
+
 export switch_endianness, get_statevector_using_picoquant, get_statevector_using_qiskit
 
 """
@@ -44,8 +44,7 @@ function get_statevector_using_picoquant(circ; big_endian=false)
     tn = convert_qiskit_circ_to_network(circ, InteractiveBackend(), decompose=false, transpile=false)
     qubits = circ.n_qubits
     add_input!(tn, "0"^qubits)
-    plan = inorder_contraction_plan(tn)
-    contract_network!(tn, plan)
+    full_wavefunction_contraction!(tn)    
     node = iterate(values(tn.nodes))[1]
     idx_order = [findfirst(x -> x == i, node.indices) for i in tn.output_qubits]
     if !big_endian

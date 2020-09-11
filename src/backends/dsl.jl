@@ -138,16 +138,19 @@ function save_output(backend::DSLBackend, node::Symbol, name::String="result")
 end
 
 """
-    function reshape_tensor(backend::DSLBackend, tensor::Symbol, shape)
+    function reshape_tensor(backend::DSLBackend,
+                            tensor::Symbol,
+                            groups::Array{Array{<:Integer, 1}, 1})
 
 Function to add dsl command that reshapes a given tensor.
 """
 function reshape_tensor(backend::DSLBackend,
                         tensor::Symbol,
-                        shape::Union{Array{<:Integer, 1}, Integer})
-    command = "reshape $tensor " * join(shape, ",")
+                        groups::Array{<:Array{<:Integer, 1}, 1})
+    command = "reshape $tensor " * join([join(y, ",") for y in groups], ";")
     push!(backend, command)
 end
+
 
 """
     function permute_tensor(nothing, tensor::Symbol, axes)
@@ -186,4 +189,23 @@ function decompose_tensor!(backend::DSLBackend,
     cmd_str *= " $right_label " * join(right_indices, ",")
     cmd_str *= " {\"threshold\":$threshold, \"max_rank\":$max_rank}"
     push!(backend, cmd_str)
+end
+
+"""
+    function delete_tensor!(backend::DSLBackend, tensor_label::Symbol)
+
+Mark tensor for deletion
+"""
+function delete_tensor!(backend::DSLBackend, tensor_label::Symbol)
+    push!(backend, "del $tensor_label")
+end
+
+"""
+    function view_tensor!(backend::DSLBackend, view_node, node, bond_idx, bond_range)
+
+Create a view on a tensor
+"""
+function view_tensor!(backend::DSLBackend, view_node, node, bond_idx, bond_range)
+    bond_range_str = join(bond_range, ",")
+    push!(backend, "view $view_node $node $bond_idx $bond_range_str")
 end

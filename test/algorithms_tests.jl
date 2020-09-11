@@ -1,90 +1,92 @@
 using FFTW
 
-@testset "Test state preparation algorithm" begin
-    @test begin
-        qubits = 1
-        circ = create_simple_preparation_circuit(qubits, 4, 42)
+@testset "Algorithm tests" begin
+    @testset "Test state preparation algorithm" begin
+        @test begin
+            qubits = 1
+            circ = create_simple_preparation_circuit(qubits, 4, 42)
 
-        ψ = get_statevector_using_picoquant(circ,
-                                            big_endian=false)
-        ψ′ = get_statevector_using_qiskit(circ, big_endian=false)
+            ψ = get_statevector_using_picoquant(circ,
+                                                big_endian=false)
+            ψ′ = get_statevector_using_qiskit(circ, big_endian=false)
 
-        overlap = (a, b) -> abs(transpose(conj.(a)) * b)
+            overlap = (a, b) -> abs(transpose(conj.(a)) * b)
 
-        overlap(ψ, ψ′) ≈ 1.
+            overlap(ψ, ψ′) ≈ 1.
+        end
+
+        @test begin
+            qubits = 3
+            circ = create_simple_preparation_circuit(qubits, 4, 42)
+
+            ψ = get_statevector_using_picoquant(circ,
+                                                big_endian=false)
+            ψ′ = get_statevector_using_qiskit(circ, big_endian=false)
+
+            overlap = (a, b) -> abs(transpose(conj.(a)) * b)
+
+            overlap(ψ, ψ′) ≈ 1.
+        end
     end
 
-    @test begin
-        qubits = 3
-        circ = create_simple_preparation_circuit(qubits, 4, 42)
+    @testset "Small QFT circuit test" begin
+        @test begin
+            n = 3
 
-        ψ = get_statevector_using_picoquant(circ,
-                                            big_endian=false)
-        ψ′ = get_statevector_using_qiskit(circ, big_endian=false)
+            prep_circ = create_simple_preparation_circuit(n, 3, 43)
+            qft_circ = create_qft_circuit(n)
 
-        overlap = (a, b) -> abs(transpose(conj.(a)) * b)
+            full_circ = prep_circ.combine(qft_circ)
 
-        overlap(ψ, ψ′) ≈ 1.
+            qft_input = get_statevector_using_qiskit(prep_circ, big_endian=false)
+            ref_output = ifft(qft_input)
+            norm = x -> x ./ sqrt(sum(x .* conj.(x)))
+            ref_output = norm(ref_output)
+
+            ψ = get_statevector_using_picoquant(full_circ)
+
+            overlap = (a, b) -> abs(transpose(conj.(a)) * b)
+
+            overlap(ψ, ref_output) ≈ 1.
+        end
     end
-end
 
-@testset "Small QFT circuit test" begin
-    @test begin
-        n = 3
 
-        prep_circ = create_simple_preparation_circuit(n, 3, 43)
-        qft_circ = create_qft_circuit(n)
+    @testset "Larger QFT circuit test" begin
+        @test begin
+            n = 8
 
-        full_circ = prep_circ.combine(qft_circ)
+            prep_circ = create_simple_preparation_circuit(n, 3, 43)
+            qft_circ = create_qft_circuit(n)
 
-        qft_input = get_statevector_using_qiskit(prep_circ, big_endian=false)
-        ref_output = ifft(qft_input)
-        norm = x -> x ./ sqrt(sum(x .* conj.(x)))
-        ref_output = norm(ref_output)
+            full_circ = prep_circ.combine(qft_circ)
 
-        ψ = get_statevector_using_picoquant(full_circ)
+            qft_input = get_statevector_using_qiskit(prep_circ, big_endian=false)
+            ref_output = ifft(qft_input)
+            norm = x -> x ./ sqrt(sum(x .* conj.(x)))
+            ref_output = norm(ref_output)
 
-        overlap = (a, b) -> abs(transpose(conj.(a)) * b)
+            ψ = get_statevector_using_picoquant(full_circ)
 
-        overlap(ψ, ref_output) ≈ 1.
+            overlap = (a, b) -> abs(transpose(conj.(a)) * b)
+
+            overlap(ψ, ref_output) ≈ 1.
+        end
     end
-end
 
+    @testset "Small RQC circuit test" begin
+        @test begin
+            n = 3; m = 3; depth = 8
 
-@testset "Larger QFT circuit test" begin
-    @test begin
-        n = 8
+            rqc = create_RQC(n, m, depth)
 
-        prep_circ = create_simple_preparation_circuit(n, 3, 43)
-        qft_circ = create_qft_circuit(n)
+            qiskit_Ψ = get_statevector_using_qiskit(rqc, big_endian=false)
 
-        full_circ = prep_circ.combine(qft_circ)
+            picoquant_ψ = get_statevector_using_picoquant(rqc)
 
-        qft_input = get_statevector_using_qiskit(prep_circ, big_endian=false)
-        ref_output = ifft(qft_input)
-        norm = x -> x ./ sqrt(sum(x .* conj.(x)))
-        ref_output = norm(ref_output)
+            overlap = (a, b) -> abs(transpose(conj.(a)) * b)
 
-        ψ = get_statevector_using_picoquant(full_circ)
-
-        overlap = (a, b) -> abs(transpose(conj.(a)) * b)
-
-        overlap(ψ, ref_output) ≈ 1.
-    end
-end
-
-@testset "Small RQC circuit test" begin
-    @test begin
-        n = 3; m = 3; depth = 8
-
-        rqc = create_RQC(n, m, depth)
-
-        qiskit_Ψ = get_statevector_using_qiskit(rqc, big_endian=false)
-
-        picoquant_ψ = get_statevector_using_picoquant(rqc)
-
-        overlap = (a, b) -> abs(transpose(conj.(a)) * b)
-
-        overlap(picoquant_ψ, qiskit_Ψ) ≈ 1.
+            overlap(picoquant_ψ, qiskit_Ψ) ≈ 1.
+        end
     end
 end

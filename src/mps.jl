@@ -28,25 +28,26 @@ function MPSState(network::TensorNetworkCircuit, mps_nodes::Array{Symbol, 1})
     # and data arrays which we create for each mps tensor
     nodes = Array{Node, 1}(undef, n)
     data_tensors = Array{Array{ComplexF64}, 2}(undef, (n, 2))
+    output_positions = Array{Int64, 1}(undef, length(mps_nodes))
     for i = 1:length(mps_nodes)
         node_label = mps_nodes[i]
-        output_index = network.output_qubits[i]
-        output_position = findfirst(x -> x == output_index,
+        # output_index = network.output_qubits[i]
+        output_positions[i] = findfirst(x -> x in network.output_qubits,
                                     network.nodes[node_label].indices)
         other_positions = collect(
                     setdiff(
                         OrderedSet(1:length(network.nodes[node_label].indices)),
-                        output_position)
+                        output_positions[i])
                     )
         tensor = permutedims(
                     load_tensor_data(network, node_label),
-                                     (output_position, other_positions...))
+                                     (output_positions[i], other_positions...))
         nodes[i] = Node(network.nodes[node_label].indices[[other_positions...]],
                         Symbol("n_$i"))
         data_tensors[i, :] = [tensor[x,..] for x in 1:2]
     end
     ordering = Array{Int, 1}(undef, n)
-    for (i, e) in enumerate(network.qubit_ordering)
+    for (i, e) in zip(output_positions, network.qubit_ordering)
         ordering[e] = i
     end
     MPSState{ComplexF64, n}(data_tensors, nodes, ordering)

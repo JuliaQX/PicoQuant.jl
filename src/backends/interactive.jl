@@ -71,8 +71,8 @@ function contract_tensors(backend::InteractiveBackend,
 
     # Save the new tensor and delete the tensors that were contracted.
     backend.tensors[C_label] = C_data
-    delete!(backend.tensors, A_label)
-    delete!(backend.tensors, B_label)
+    delete_tensor!(backend, A_label)
+    delete_tensor!(backend, B_label)
 end
 
 """
@@ -88,15 +88,19 @@ function save_output(backend::InteractiveBackend,
 end
 
 """
-    function reshape_tensor(backend::InteractiveBackend, tensor::Symbol, shape)
+    function reshape_tensor(backend::InteractiveBackend,
+                            tensor::Symbol,
+                            groups::Array{Array{<:Integer, 1}, 1})
 
 Function to reshape a given tensor.
 """
 function reshape_tensor(backend::InteractiveBackend,
                         tensor::Symbol,
-                        shape::Union{Array{<:Integer, 1}, Integer})
-    backend.tensors[tensor] = reshape_tensor(backend.tensors[tensor], shape)
+                        groups::Array{<:Array{<:Integer, 1}, 1})
+    tensor_dims = size(backend.tensors[tensor])
+    backend.tensors[tensor] = reshape_tensor(backend.tensors[tensor], [prod(tensor_dims[x]) for x in groups])
 end
+
 
 """
     function permute_tensor(backend::InteractiveBackend, tensor::Symbol, axes)
@@ -144,5 +148,26 @@ function decompose_tensor!(backend::InteractiveBackend,
     backend.tensors[left_label] = B
     backend.tensors[right_label] = C
 
-    delete!(backend.tensors, tensor)
+    delete_tensor!(backend, tensor)
+end
+
+"""
+    function delete_tensor!(backend::InteractiveBackend, tensor_label::Symbol)
+
+Mark tensor for deletion
+"""
+function delete_tensor!(backend::InteractiveBackend, tensor_label::Symbol)
+    delete!(backend.tensors, tensor_label)
+end
+
+
+"""
+    function view_tensor!(backend::InteractiveBackend, view_node, node, bond_idx, bond_range)
+
+Create a view on a tensor
+"""
+function view_tensor!(backend::InteractiveBackend, view_node, node, bond_idx, bond_range)
+    node_data = backend.tensors[node]
+    dims = size(node_data)
+    backend.tensors[view_node] = tensor_view(node_data, bond_idx, bond_range)
 end
