@@ -41,8 +41,7 @@ end
 Uses picoquant to calculate statevector resulting from given circuit
 """
 function get_statevector_using_picoquant(circ; big_endian=false)
-    InteractiveBackend()
-    tn = convert_qiskit_circ_to_network(circ, decompose=false, transpile=false)
+    tn = convert_qiskit_circ_to_network(circ, InteractiveBackend(), decompose=false, transpile=false)
     qubits = circ.n_qubits
     add_input!(tn, "0"^qubits)
     plan = inorder_contraction_plan(tn)
@@ -52,6 +51,6 @@ function get_statevector_using_picoquant(circ; big_endian=false)
     if !big_endian
         idx_order = idx_order[end:-1:1]
     end
-    reshape(permutedims(backend.tensors[:result], idx_order), 2^qubits)
+    reshape(permutedims(tn.backend.tensors[:result], idx_order), 2^qubits)
 end
 

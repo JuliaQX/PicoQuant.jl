@@ -80,7 +80,8 @@ according to the ncon indices given and return the result.
 """
 function contract_tensors(tensors_to_contract::Tuple{Array{<:Number}, Array{<:Number}},
                           tensor_indices::Tuple{Array{<:Integer,1},Array{<:Integer,1}})
-    ncon(tensors_to_contract, tensor_indices)
+    tensorcontract(tensors_to_contract[1], Tuple(tensor_indices[1]),
+                   tensors_to_contract[2], Tuple(tensor_indices[2]))
 end
 
 """

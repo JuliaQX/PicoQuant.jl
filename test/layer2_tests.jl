@@ -37,9 +37,8 @@ for (backend_name, backend_funcs) in pairs(backends)
                       cx q[1],q[2];"""
 
         try
-            backend_funcs[:init]()
             circ = load_qasm_as_circuit(qasm_str)
-            tng = convert_qiskit_circ_to_network(circ)
+            tng = convert_qiskit_circ_to_network(circ, backend_funcs[:init]())
             plan = random_contraction_plan(tng)
 
             # Is the length of the plan equal the number of closed edges in the network?
@@ -87,9 +86,8 @@ for (backend_name, backend_funcs) in pairs(backends)
                       cx q[1],q[2];"""
 
         try
-            backend_funcs[:init]()
             circ = load_qasm_as_circuit(qasm_str)
-            tng = convert_qiskit_circ_to_network(circ)
+            tng = convert_qiskit_circ_to_network(circ, backend_funcs[:init]())
             add_input!(tng, "000")
             add_output!(tng, "000")
             plan = random_contraction_plan(tng)
@@ -97,7 +95,7 @@ for (backend_name, backend_funcs) in pairs(backends)
             # Test if contract_network creates files with dsl and tensor data.
             contract_network!(tng, plan)
 
-            backend_funcs[:execute]
+            backend_funcs[:execute]()
 
             # Is there only one node left after the contraction?
             @test begin
@@ -108,7 +106,6 @@ for (backend_name, backend_funcs) in pairs(backends)
         end
 
         try
-            backend_funcs[:init]()
             # Create a network which will be disjoint when all edges are contracted
             qasm_str = """OPENQASM 2.0;
                           include "qelib1.inc";
@@ -117,7 +114,7 @@ for (backend_name, backend_funcs) in pairs(backends)
                           h q[1];"""
 
             circ = load_qasm_as_circuit(qasm_str)
-            tng = convert_qiskit_circ_to_network(circ)
+            tng = convert_qiskit_circ_to_network(circ, backend_funcs[:init]())
             add_input!(tng, "00")
             plan = random_contraction_plan(tng)
 
@@ -132,12 +129,12 @@ for (backend_name, backend_funcs) in pairs(backends)
 
             # Check if the final tensor is a vector
             @test begin
-                result = load_tensor_data(backend, :result)
+                result = load_tensor_data(tng, :result)
                 length(size(result)) == 1
             end
 
             @test begin
-                result = load_tensor_data(backend, :result)
+                result = load_tensor_data(tng, :result)
                 real(result)[1] ≈ 1/2
             end
         finally
@@ -158,15 +155,14 @@ for (backend_name, backend_funcs) in pairs(backends)
                       """
 
         try
-            backend_funcs[:init]()
             circ = load_qasm_as_circuit(qasm_str)
-            tn = convert_qiskit_circ_to_network(circ)
+            tn = convert_qiskit_circ_to_network(circ, backend_funcs[:init]())
             add_input!(tn, "000")
 
             # See if full wavefunction contraction completes.
             full_wavefunction_contraction!(tn, "vector")
 
-            backend_funcs[:execute]
+            backend_funcs[:execute]()
 
             # Is there only one node left after the contraction?
             @test begin
@@ -181,8 +177,7 @@ for (backend_name, backend_funcs) in pairs(backends)
 
         @test begin
             try
-                backend_funcs[:init]()
-                tn = TensorNetworkCircuit(2)
+                tn = TensorNetworkCircuit(2, backend_funcs[:init]())
                 add_input!(tn, "00")
                 compress_tensor_chain!(tn, collect(keys(tn.nodes)))
                 length(tn.nodes) == 2
@@ -194,7 +189,6 @@ for (backend_name, backend_funcs) in pairs(backends)
         @testset begin
 
             try
-                backend_funcs[:init]()
                 # create a network and apply a ghz state preparation
                 # circuit. Then apply two additional cnot gates which should
                 # cancel out. At this point there should be 3 virtual bonds
@@ -208,9 +202,8 @@ for (backend_name, backend_funcs) in pairs(backends)
                               cx q[0],q[1];
                               cx q[0],q[1];
                               """
-                InteractiveBackend()
                 circ = load_qasm_as_circuit(qasm_str)
-                tn = convert_qiskit_circ_to_network(circ)
+                tn = convert_qiskit_circ_to_network(circ, backend_funcs[:init]())
                 add_input!(tn, "0"^2)
                 decompose_tensor!(tn, :node_2, [:index_3, :index_4],
                                   [:index_2, :index_5])
@@ -232,9 +225,13 @@ for (backend_name, backend_funcs) in pairs(backends)
 
                 idx = findfirst(x -> x == :index_14, tn.nodes[:node_18].indices)
 
+                if backend_name == "DSLBackend"
+                    save_output(tn, :node_18, "node_18")
+                end
+
                 backend_funcs[:execute]()
 
-                result = load_tensor_data(backend, :node_18)
+                result = load_tensor_data(tn, :node_18)
 
                 size(result)[idx] == 2
             finally
@@ -246,10 +243,10 @@ for (backend_name, backend_funcs) in pairs(backends)
     @testset "Test tensor network contraction with MPS methods for $backend_name" begin
         @test begin
             try
-                backend_funcs[:init]()
                 n = 5
                 circ = create_ghz_preparation_circuit(n)
                 tn = convert_qiskit_circ_to_network(circ,
+                                                    backend_funcs[:init](),
                                                     decompose=true,
                                                     transpile=true)
                 add_input!(tn, "0"^n)
@@ -258,7 +255,7 @@ for (backend_name, backend_funcs) in pairs(backends)
                 backend_funcs[:execute]()
                 ref_output = zeros(ComplexF64, 2^n)
                 ref_output[[1, end]] .= 1/sqrt(2)
-                load_tensor_data(backend, :result) ≈ ref_output
+                load_tensor_data(tn, :result) ≈ ref_output
             finally
                 backend_funcs[:finalise]()
             end
@@ -268,14 +265,12 @@ for (backend_name, backend_funcs) in pairs(backends)
     @testset "Test decopmose with threshold option for backend $backend_name" begin
         @test begin
             try
-                backend_funcs[:init]()
-
                 # create distribution to sample from to get a random unitary matrix
                 dist = Haar(1)
                 d = 2
                 random_gate_data = reshape(rand(dist, d^2), (d, d, d, d))
 
-                tn = TensorNetworkCircuit(2)
+                tn = TensorNetworkCircuit(2, backend_funcs[:init]())
                 add_gate!(tn, random_gate_data, [1, 2])
 
                 threshold = 1.0
@@ -285,7 +280,7 @@ for (backend_name, backend_funcs) in pairs(backends)
                                               [:index_1, :index_3],
                                               [:index_2, :index_4],
                                               threshold=threshold)
-                save_output(backend, new_nodes[1], String(new_nodes[1]))
+                save_output(tn, new_nodes[1], String(new_nodes[1]))
 
                 backend_funcs[:execute]()
 
@@ -295,7 +290,7 @@ for (backend_name, backend_funcs) in pairs(backends)
                 expected_dim = sum(F.S .> threshold)
                 virtual_bonds = virtualedges(tn, new_nodes[1])
                 bond_idx = findfirst(x -> x == virtual_bonds[1], tn.nodes[new_nodes[1]].indices)
-                size(load_tensor_data(backend, new_nodes[1]))[bond_idx] == expected_dim
+                size(load_tensor_data(tn, new_nodes[1]))[bond_idx] == expected_dim
             finally
                 backend_funcs[:finalise]()
             end
@@ -304,14 +299,12 @@ for (backend_name, backend_funcs) in pairs(backends)
         @testset "Test decopmose with max_rank option for backend $backend_name" begin
             @test begin
                 try
-                    backend_funcs[:init]()
-
                     # create distribution to sample from to get a random unitary matrix
                     dist = Haar(1)
                     d = 2
                     random_gate_data = reshape(rand(dist, d^2), (d, d, d, d))
 
-                    tn = TensorNetworkCircuit(2)
+                    tn = TensorNetworkCircuit(2, backend_funcs[:init]())
                     add_gate!(tn, random_gate_data, [1, 2])
 
                     max_rank = 1
@@ -321,13 +314,13 @@ for (backend_name, backend_funcs) in pairs(backends)
                                                 [:index_1, :index_3],
                                                 [:index_2, :index_4],
                                                 max_rank=max_rank)
-                    save_output(backend, new_nodes[1], String(new_nodes[1]))
+                    save_output(tn, new_nodes[1], String(new_nodes[1]))
 
                     backend_funcs[:execute]()
 
                     virtual_bonds = virtualedges(tn, new_nodes[1])
                     bond_idx = findfirst(x -> x == virtual_bonds[1], tn.nodes[new_nodes[1]].indices)
-                    size(load_tensor_data(backend, new_nodes[1]))[bond_idx] == max_rank
+                    size(load_tensor_data(tn, new_nodes[1]))[bond_idx] == max_rank
                 finally
                     backend_funcs[:finalise]()
                 end

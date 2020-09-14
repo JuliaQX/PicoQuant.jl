@@ -10,8 +10,7 @@ using LinearAlgebra
                   cx q[1],q[2];"""
 
     circ = load_qasm_as_circuit(qasm_str)
-    InteractiveBackend()
-    tng = convert_qiskit_circ_to_network(circ)
+    tng = convert_qiskit_circ_to_network(circ, InteractiveBackend())
     tng_json = to_json(tng)
 
     @test begin
@@ -30,7 +29,7 @@ using LinearAlgebra
 end
 
 @testset "Test tensor network data structure" begin
-    tn = TensorNetworkCircuit(3)
+    tn = TensorNetworkCircuit(3, InteractiveBackend())
 
     @test begin
         # Check if tn has the correct number of nodes
@@ -38,7 +37,6 @@ end
     end
 
     hadamard = [1 1; 1 -1]./sqrt(2)
-    InteractiveBackend()
     add_gate!(tn, hadamard, [1])
     @test begin
         length(tn.nodes) == 1
@@ -50,8 +48,7 @@ end
 end
 
 @testset "Test tensor decomposition" begin
-    InteractiveBackend()
-    tn = TensorNetworkCircuit(2)
+    tn = TensorNetworkCircuit(2, InteractiveBackend())
     gate_data = rand(ComplexF64, 2, 2, 2, 2)
 
     @test begin
@@ -59,8 +56,8 @@ end
         result_label = contract_pair!(tn, gate_labels...)
         # should now only be a single node left
         # index order will have changed so permute back before comparing
-        # data = reshape(collect(values(backend.tensors))[1], 2, 2, 2, 2)
-        data = backend.tensors[result_label]
+        # data = reshape(collect(values(tn.backend.tensors))[1], 2, 2, 2, 2)
+        data = tn.backend.tensors[result_label]
         data = permutedims(data, (1, 3, 2, 4))
         data ≈ gate_data
     end
@@ -75,8 +72,7 @@ end
                   cx q[1],q[2];"""
 
     circ = load_qasm_as_circuit(qasm_str)
-    InteractiveBackend()
-    tng = convert_qiskit_circ_to_network(circ, decompose=true)
+    tng = convert_qiskit_circ_to_network(circ, InteractiveBackend(), decompose=true)
 
     @test begin
         length(tng.nodes) == 5
@@ -91,8 +87,7 @@ end
                   cx q[0],q[2];"""
 
     circ = load_qasm_as_circuit(qasm_str)
-    InteractiveBackend()
-    tng = convert_qiskit_circ_to_network(circ, transpile=true)
+    tng = convert_qiskit_circ_to_network(circ, InteractiveBackend(), transpile=true)
 
     @test begin
         tng.qubit_ordering == [2, 1, 3]

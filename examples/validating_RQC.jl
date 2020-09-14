@@ -20,7 +20,7 @@ for (i, d) in enumerate(1:depth)
     for _ = 1:samples
         rqc = create_RQC(n, m, d)
 
-        InteractiveBackend()
+        # An InteractiveBackend is used by default
         rqc_tn = convert_qiskit_circ_to_network(rqc)
         add_input!(rqc_tn, "0"^length(rqc_tn.input_qubits))
 

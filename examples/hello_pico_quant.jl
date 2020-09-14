@@ -20,13 +20,9 @@ qasm_str = """OPENQASM 2.0;
 ## Use qiskit to load the qasm and get a qiskit circuit object
 circ = load_qasm_as_circuit(qasm_str)
 
-# Create a DSLWriter object and set it as the backend. The DSLWriter will write
-# DSL commands and save tensor data to the given files.
-
-DSLWriter("ghz_3.tl", "ghz_3_data.h5")
-
-## From qiskit circuit object build a tensor network representation
-tng = convert_qiskit_circ_to_network(circ)
+## From qiskit circuit object build a tensor network representation using a DSLBackend.
+## The DSLBackend will write DSL commands and save tensor data to the given files.
+tng = convert_qiskit_circ_to_network(circ, DSLBackend("ghz_3.tl", "ghz_3_data.h5"))
 
 # This prepares a tensor network of the circuit gates but does not define
 # input qubits or values for these. We wish to add all 0's as
