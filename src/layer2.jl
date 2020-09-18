@@ -6,6 +6,7 @@ export contract_pair!, contract_network!, full_wavefunction_contraction!
 export compress_tensor_chain!, decompose_tensor!
 export contract_mps_tensor_network_circuit!
 export calculate_mps_amplitudes!
+export cost
 
 include("layer2/slicing.jl")
 
@@ -17,17 +18,31 @@ function merge_common_bonds!(network::TensorNetworkCircuit, a_label::Symbol, b_l
     b = network.nodes[b_label]
     a_common_indices = findall(x -> x in b.indices, a.indices)
     common_edges = a.indices[a_common_indices]
+
     if length(a_common_indices) > 1
+
+        index_map_a = Dict([v => k for (k, v) in enumerate(a.indices)])
+        index_map_b = Dict([v => k for (k, v) in enumerate(b.indices)])
+
         a_remaining_indices = findall(x -> !(x in b.indices), a.indices)
         permute_tensor(network, a_label, vcat(a_remaining_indices, a_common_indices))
-        
+
         b_common_indices = findall(x -> x in a.indices, b.indices)
-        b_remaining_indices = findall(x -> !(x in a.indices), b.indices)        
+        b_remaining_indices = findall(x -> !(x in a.indices), b.indices)
         permute_tensor(network, b_label, vcat(b_remaining_indices, b_common_indices))
 
         new_edge = new_label!(network, "index")
-        network.nodes[a_label] = Node(vcat(a.indices[a_remaining_indices], [new_edge]), a_label)
-        network.nodes[b_label] = Node(vcat(b.indices[b_remaining_indices], [new_edge]), b_label)        
+        indices_a = vcat(a.indices[a_remaining_indices], [new_edge])
+        indices_b = vcat(b.indices[b_remaining_indices], [new_edge])
+
+        dims_map_a = Dict{Symbol, Int64}(a.indices .=> a.dims)
+        dims_map_a = Dict{Symbol, Int64}(b.indices .=> b.dims)
+        dims_map_a[new_edge] = dims_map_b[new_edge] = prod([dims_map_a[ind] for ind in a_common_indices])
+        dims_a = [dims_map_a[index] for index in indices_a]
+        dims_b = [dims_map_b[index] for index in indices_b]
+
+        network.nodes[a_label] = Node(indices_a, dims_a, a_label)
+        network.nodes[b_label] = Node(indices_b, dims_b, b_label)
 
         l, m = length(a_remaining_indices), length(a_common_indices)
         groups = [map(x -> [x], 1:l)..., collect((l+1):l+m)]
@@ -70,14 +85,14 @@ function inorder_contraction!(network::TensorNetworkCircuit)
         for (i, node) in enumerate(nodes)
             in_nodes = unique(inneighbours(network, node))
             for in_node in in_nodes
-                node = contract_pair!(network, in_node, node)                
+                node = contract_pair!(network, in_node, node)
             end
             new_nodes[i] = node
         end
         # merge multiple virtual bonds if present
         for (x, y) in Iterators.product(new_nodes, new_nodes)
             if y > x
-                merge_common_bonds!(network, x, y)                
+                merge_common_bonds!(network, x, y)
             end
         end
     end
@@ -153,7 +168,7 @@ function full_wavefunction_contraction!(network::TensorNetworkCircuit,
         permute_tensor(network, output_tensor, order)
 
         # Reshape the final tensor if a shape is specified by the user.
-        if output_shape == "vector"            
+        if output_shape == "vector"
             reshape_tensor(network, output_tensor, [collect(1:length(node.indices))])
         elseif output_shape != ""
             reshape_tensor(network, output_tensor, output_shape)
@@ -235,7 +250,7 @@ function contract_network!(network::TensorNetworkCircuit,
 
     # Reshape the final tensor if a shape is specified by the user.
     output_tensor = Symbol("node_$(network.counters["node"])")
-    if output_shape == "vector"    
+    if output_shape == "vector"
         reshape_tensor(network, output_tensor, [collect(1:length(network.output_qubits))])
 
     elseif output_shape != ""
@@ -290,9 +305,17 @@ function contract_pair!(network::TensorNetworkCircuit,
                                                          common_indices,
                                                          remaining_indices)
 
+
+    # Get the dimensions of the contracted and open indices and use them
+    # to record the costs of contraction
+    dims_map = Dict{Symbol, Int}([A.indices; B.indices] .=> [A.dims; B.dims])
+    contracted_dims = [dims_map[ind] for ind in common_indices]
+    C_dims = [dims_map[ind] for ind in remaining_indices]
+    record_compute_costs!(network.backend, C_dims, contracted_dims)
+
     # Create and add the new node to the tensor network.
     C_label = new_label!(network, "node")
-    C = Node(remaining_indices, C_label)
+    C = Node(remaining_indices, C_dims, C_label)
     network.nodes[C_label] = C
 
     # remove contracted edges
@@ -413,18 +436,35 @@ function decompose_tensor!(network::TensorNetworkCircuit,
     # plumb these nodes back into the graph and delete the original
     B_label = (left_label === nothing) ? new_label!(network, "node") : left_label
     C_label = (right_label === nothing) ? new_label!(network, "node") : right_label
-    index_label = new_label!(network, "index")
-    B_node = Node(vcat(left_indices, [index_label,]), B_label)
-    C_node = Node(vcat([index_label,], right_indices), C_label)
 
-    decompose_tensor!(network,
-                      node_label,
-                      left_positions,
-                      right_positions;
-                      threshold=threshold,
-                      max_rank=max_rank,
-                      left_label=B_label,
-                      right_label=C_label)
+    chi = decompose_tensor!(network,
+                            node_label,
+                            left_positions,
+                            right_positions;
+                            threshold=threshold,
+                            max_rank=max_rank,
+                            left_label=B_label,
+                            right_label=C_label)
+
+    # Work out the dimensions of the indices.
+    B_dims = [node.dims[i] for i in left_positions]
+    C_dims = [node.dims[i] for i in right_positions]
+    if chi > 0
+        virtual_dim = chi
+    else
+        left_dim = prod(B_dims)
+        right_dim = prod(C_dims)
+        virtual_dim = min(left_dim, right_dim)
+        if max_rank > 0
+            virtual_dim = min(virtual_dim, max_rank)
+        end
+    end
+    append!(B_dims, virtual_dim)
+    prepend!(C_dims, virtual_dim)
+
+    index_label = new_label!(network, "index")
+    B_node = Node(vcat(left_indices, [index_label,]), B_dims, B_label)
+    C_node = Node(vcat([index_label,], right_indices), C_dims, C_label)
 
     # add the nodes
     network.nodes[B_label] = B_node

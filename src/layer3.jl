@@ -23,7 +23,9 @@ export gate_tensor
 struct Node
     # the indices that the node contains
     indices::Array{Symbol, 1}
-    # data tensor
+    # tensor dimensions
+    dims::Array{<:Integer, 1}
+    # The symbol used to identify the tensor associated with this node.
     data_label::Symbol
 end
 
@@ -34,7 +36,7 @@ Outer constructor to create an instance of Node with the given data label and no
 index labels
 """
 function Node(data_label::Symbol)
-    Node(Array{Symbol, 1}(), data_label)
+    Node(Array{Symbol, 1}(), Array{Int64, 1}(), data_label)
 end
 
 """Struct to represent an edge"""
@@ -183,7 +185,7 @@ function add_gate!(network::TensorNetworkCircuit,
             else
                 indices = [virtual_index, input_indices[i], output_indices[i]]
             end
-            new_node = Node(indices, data_label)
+            new_node = Node(indices, [size(gates_data[i])...], data_label)
             network.nodes[node_label] = new_node
             network.node_layers[node_label] = layer
 
@@ -214,7 +216,7 @@ function add_gate!(network::TensorNetworkCircuit,
         # but thinking these can differ when avoiding duplication of tensor data.
         node_label = new_label!(network, "node")
         data_label = node_label
-        new_node = Node(vcat(input_indices, output_indices), data_label)
+        new_node = Node(vcat(input_indices, output_indices), [size(gate_data)...], data_label)
         network.nodes[node_label] = new_node
         network.node_layers[node_label] = layer
 
@@ -267,14 +269,15 @@ function add_input!(network::TensorNetworkCircuit, config::String)
         if network.edges[input_index].src === nothing
             node_label = new_label!(network, "node")
             data_label = node_label
-            
+
             node_map = Dict('0' => [1., 0],
                             '1' => [0., 1.],
                             '+' => 1/sqrt(2)*[1., 1.],
                             '-' => 1/sqrt(2)*[1., -1.])
 
             node_data = node_map[config_char]
-            network.nodes[node_label] = Node([input_index], data_label)
+            dims = [size(node_data)...]
+            network.nodes[node_label] = Node([input_index], dims, data_label)
             network.node_layers[node_label] = 0
 
             # Save the gate data to the executer
@@ -304,7 +307,8 @@ function add_output!(network::TensorNetworkCircuit, config::String)
             data_label = node_label
 
             node_data = (config_char == '0') ? [1., 0.] : [0., 1.]
-            network.nodes[node_label] = Node([output_index], data_label)
+            dims = [size(node_data)...]
+            network.nodes[node_label] = Node([output_index], dims, data_label)
             network.node_layers[node_label] = -1
 
             # Save the gate data to the executer
@@ -570,7 +574,8 @@ Function to serialise node instance to json format
 """
 function to_dict(node::Node)
     node_dict = Dict{String, Any}("indices" => [String(x) for x in node.indices])
-    node_dict["data_label"] = string(node.data_label)
+    node_dict["dims"] = string.(node.dims)
+    node_dict["data_label"] = String(node.data_label)
     node_dict
 end
 
@@ -581,8 +586,9 @@ Function to create a node instance from a json string
 """
 function node_from_dict(d::AbstractDict)
     indices = [Symbol(x) for x in d["indices"]]
+    dims = parse.(Int, d["dims"])
     data_label = Symbol(d["data_label"])
-    Node(indices, data_label)
+    Node(indices, dims, data_label)
 end
 
 """

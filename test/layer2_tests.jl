@@ -116,6 +116,14 @@ using LinearAlgebra
                 # See if full wavefunction contraction completes.
                 full_wavefunction_contraction!(tn, "vector")
 
+                # check if the computed metrics are correct
+                @test begin
+                    max_size = tn.backend.metrics.max_tensor_size == 8
+                    total_space = tn.backend.metrics.total_space_allocated == 44
+                    flops = tn.backend.metrics.flops == 124
+                    max_size && total_space && flops
+                end
+
                 backend_funcs[:execute]()
 
                 # Is there only one node left after the contraction?

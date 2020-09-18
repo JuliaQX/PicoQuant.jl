@@ -152,7 +152,7 @@ function decompose_tensor(tensor::Array{<:Number},
     B = reshape(F.U[:, 1:chi] * Diagonal(s), Tuple(vcat(left_dims, [chi,])))
     C = reshape(Diagonal(s) * F.Vt[1:chi, :], Tuple(vcat([chi,], right_dims)))
 
-    B, C
+    B, C, chi
 end
 
 """

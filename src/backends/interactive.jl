@@ -10,10 +10,11 @@ mutable struct InteractiveBackend <: AbstractBackend
     use_gpu::Bool
     memory_size_mb::Int64
     tensors::Dict{Symbol, Array{<:Number}}
+    metrics::Metrics
 
     function InteractiveBackend(use_gpu::Bool=false, memory_size_mb::Int64=0)
         tensors = Dict{Symbol, Array{<:Number}}()
-        new(use_gpu, memory_size_mb, tensors)
+        new(use_gpu, memory_size_mb, tensors, Metrics())
     end
 end
 
@@ -123,7 +124,8 @@ end
                                left_label::Symbol,
                                right_label::Symbol)
 
-Function to decompose a single tensor into two tensors
+Function to decompose a single tensor into two tensors and return the dimension
+of the newly created virtual edge. 
 """
 function decompose_tensor!(backend::InteractiveBackend,
                            tensor::Symbol,
@@ -135,11 +137,8 @@ function decompose_tensor!(backend::InteractiveBackend,
                            right_label::Symbol)
 
     node_data = backend.tensors[tensor]
-    dims = size(node_data)
-    left_dims = [dims[x] for x in left_positions]
-    right_dims = [dims[x] for x in right_positions]
 
-    (B, C) = decompose_tensor(node_data,
+    (B, C, chi) = decompose_tensor(node_data,
                               left_positions,
                               right_positions,
                               threshold=threshold,
@@ -149,6 +148,7 @@ function decompose_tensor!(backend::InteractiveBackend,
     backend.tensors[right_label] = C
 
     delete_tensor!(backend, tensor)
+    chi
 end
 
 """
@@ -168,6 +168,5 @@ Create a view on a tensor
 """
 function view_tensor!(backend::InteractiveBackend, view_node, node, bond_idx, bond_range)
     node_data = backend.tensors[node]
-    dims = size(node_data)
     backend.tensors[view_node] = tensor_view(node_data, bond_idx, bond_range)
 end

@@ -28,7 +28,7 @@ end
 
 """
     function partition_network_on_virtual_bonds(tn::TensorNetworkCircuit,
-                                                number_partitions::Int64, 
+                                                number_partitions::Int64,
                                                 partition::Int64)
 
 Given a tensor network circuit, find the virtual bond to slice and values
@@ -52,7 +52,7 @@ function partition_network_on_virtual_bonds(network::TensorNetworkCircuit,
     bond_dims = bond_dims[bond_order]
 
     @assert length(bond_dims) > 0 "There must be some virtual bonds, try turning on decompose"
-    ci = multi_index_partition(Tuple(bond_dims), number_partitions, partition)    
+    ci = multi_index_partition(Tuple(bond_dims), number_partitions, partition)
     virtual_bonds[1:length(ci)], ci
 end
 
@@ -74,7 +74,7 @@ function replace_with_view!(network::TensorNetworkCircuit,
     view_node = new_label!(network, "node")
 
     # plumb in this view node in place of original
-    network.nodes[view_node] = Node(node.indices, view_node)
+    network.nodes[view_node] = Node(node.indices, node.dims, view_node)
     network.node_layers[view_node] = network.node_layers[node_label]
 
     for edge_index in node.indices

@@ -15,6 +15,7 @@ mutable struct DSLBackend <: AbstractBackend
     dsl_filename::String
     tensor_data_filename::String
     output_data_filename::String
+    metrics::Metrics
 
     function DSLBackend(dsl::String="contract_network.tl",
                         tensor_data="tensor_data.h5"::String,
@@ -35,7 +36,7 @@ mutable struct DSLBackend <: AbstractBackend
             close(h5open(tensor_data, "w"))
         end
 
-        new(dsl, tensor_data, output)
+        new(dsl, tensor_data, output, Metrics())
     end
 end
 
@@ -174,7 +175,9 @@ end
                                left_label::Symbol,
                                right_label::Symbol)
 
-Function to decompose a single tensor into two tensors
+Function to decompose a single tensor into two tensors. Returns 0 as an
+indication that the dimension of the new virtual edge cannot be determined
+until runtime.
 """
 function decompose_tensor!(backend::DSLBackend,
                            tensor::Symbol,
@@ -189,6 +192,7 @@ function decompose_tensor!(backend::DSLBackend,
     cmd_str *= " $right_label " * join(right_indices, ",")
     cmd_str *= " {\"threshold\":$threshold, \"max_rank\":$max_rank}"
     push!(backend, cmd_str)
+    0
 end
 
 """

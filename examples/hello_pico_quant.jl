@@ -29,18 +29,23 @@ tng = convert_qiskit_circ_to_network(circ, DSLBackend("ghz_3.tl", "ghz_3_data.h5
 
 add_input!(tng, "000")
 
-# Create a random contraction plan by randomly selecting an ordering of edges
+## Create a random contraction plan by randomly selecting an ordering of edges
 
 plan = random_contraction_plan(tng)
 
-# Using the given contraction plan, we prepare a DSL description which will
+# We can compute the time (flops) and space (max memory used by a tensor) costs
+# of contracting the network with this contraction plan as follows.
+
+plan_cost = cost(tng, plan)
+
+## Using the given contraction plan, we prepare a DSL description which will
 # execute the given plan and also write the tensors required to a file on disk.
 
 contract_network!(tng, plan, "vector")
 
 # We can examine the DSL that is produced
 
-;cat "ghz_3.tl"
+# ;cat "ghz_3.tl"
 
 # and also execute the DSL to produce the desired output.
 
