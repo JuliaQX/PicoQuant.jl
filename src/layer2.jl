@@ -9,6 +9,10 @@ export calculate_mps_amplitudes!
 export cost
 
 include("layer2/slicing.jl")
+include("layer2/netcon_contraction.jl")
+include("layer2/bgreedy_contraction.jl")
+include("layer2/quickbb_contraction.jl")
+# include("layer2/KaHyPar_contraction.jl")
 
 using HDF5
 
@@ -248,13 +252,57 @@ function contract_network!(network::TensorNetworkCircuit,
         contract_pair!(network, n1.first, n2.first)
     end
 
-    # Reshape the final tensor if a shape is specified by the user.
+    # Permute the indices of the final tensor to have the correct order.
     output_tensor = Symbol("node_$(network.counters["node"])")
-    if output_shape == "vector"
-        reshape_tensor(network, output_tensor, [collect(1:length(network.output_qubits))])
+    node = network.nodes[output_tensor]
+    if length(node.indices) != 0
+        order = [findfirst(x->x==ind, node.indices) for ind in network.output_qubits]
+        node.indices[:] = network.output_qubits[:]
+        permute_tensor(network, output_tensor, order)
 
-    elseif output_shape != ""
-        reshape_tensor(network, output_tensor, output_shape)
+        # Reshape the final tensor if a shape is specified by the user.
+        if output_shape == "vector"
+            reshape_tensor(network, output_tensor, [collect(1:length(node.indices))])
+        elseif output_shape != ""
+            reshape_tensor(network, output_tensor, output_shape)
+        end
+    end
+
+    # save the final tensor under the name "result".
+    save_output(network, output_tensor)
+end
+
+"""
+    function contract_network!(network::TensorNetworkCircuit,
+                               plan::Array{Array{Symbol, 1}, 1},
+                               output_shape::Union{String, Array{<:Array{<:Integer, 1}, 1})
+
+Function to contract the given network according to the given contraction plan.
+The resulting tensor will be given the shape described by 'output_shape'.
+"""
+function contract_network!(network::TensorNetworkCircuit,
+                           plan::Array{Array{Symbol, 1}, 1},
+                           output_shape::Union{String, Array{<:Integer, 1}}="")
+
+    # Loop through the plan and contract each tensor pair in sequence
+    for (A, B) in plan
+        contract_pair!(network, A, B)
+    end
+
+    # Permute the indices of the final tensor to have the correct order.
+    output_tensor = Symbol("node_$(network.counters["node"])")
+    node = network.nodes[output_tensor]
+    if length(node.indices) != 0
+        order = [findfirst(x->x==ind, node.indices) for ind in network.output_qubits]
+        node.indices[:] = network.output_qubits[:]
+        permute_tensor(network, output_tensor, order)
+
+        # Reshape the final tensor if a shape is specified by the user.
+        if output_shape == "vector"
+            reshape_tensor(network, output_tensor, [collect(1:length(node.indices))])
+        elseif output_shape != ""
+            reshape_tensor(network, output_tensor, output_shape)
+        end
     end
 
     # save the final tensor under the name "result".

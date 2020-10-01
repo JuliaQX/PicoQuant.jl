@@ -125,7 +125,7 @@ end
                                right_label::Symbol)
 
 Function to decompose a single tensor into two tensors and return the dimension
-of the newly created virtual edge. 
+of the newly created virtual edge.
 """
 function decompose_tensor!(backend::InteractiveBackend,
                            tensor::Symbol,

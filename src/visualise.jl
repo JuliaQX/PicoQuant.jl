@@ -4,8 +4,10 @@ import LightGraphs
 using PicoQuant
 using Statistics
 using GraphPlot
+using Colors
 
 export plot
+export plot_contraction_tree, create_contraction_tree
 
 """
     function create_graph(tng::TensorNetworkCircuit)
@@ -133,4 +135,85 @@ function plot(tng::TensorNetworkCircuit; showlabels::Bool=false)
               locx,
               locy)
     end
+end
+
+
+# *************************************************************************** #
+#                   Functions to visualise contraction plans
+# *************************************************************************** #
+
+"""
+    function create_contraction_tree(network::TensorNetworkCircuit,
+                                     plan::Array{Array{Symbol, 1}, 1})
+
+This function converts a contraction plan (an array of node symbol pairs) to
+a contraction tree (a MetaGraph where nodes represent tensors created during
+the contraction).
+"""
+function create_contraction_tree(network::TensorNetworkCircuit,
+                                 plan::Array{Array{Symbol, 1}, 1})
+
+    # Convert the contraction plan to an array of integer pairs.
+    edges = [[parse(Int, string(pair[1])[6:end]),
+              parse(Int, string(pair[2])[6:end])]
+             for pair in plan]
+
+    # Create a metagraph structure to represent the contraction tree.
+    graph = LightGraphs.Graph(length(network.nodes))
+    graph = MetaGraph(graph)
+
+    # Each node of the tree should have the uncontracted indices of the tensor
+    # it represents, and the cost of the contraction that created that tensor,
+    # as properties. Leaves of the tree (the tensors in the uncontracted graph)
+    # should be initialised with zero cost.
+    for (vertex, node) in enumerate(values(network.nodes))
+        props = Dict(:cost=>0, :indices=>node.indices)
+        set_props!(graph, vertex, props)
+    end
+
+    # For each edge in the contraction plan, add a new node to the tree,
+    # representing the tensor created by contracting that edge, connect it to
+    # the tree and give it the appropriate properties.
+    for edge in edges
+        LightGraphs.add_vertex!(graph)
+        LightGraphs.add_edge!(graph, edge[1], LightGraphs.nv(graph))
+        LightGraphs.add_edge!(graph, edge[2], LightGraphs.nv(graph))
+
+        A_indices = get_prop(graph, edge[1], :indices)
+        B_indices = get_prop(graph, edge[2], :indices)
+        common_indices = intersect(A_indices, B_indices)
+        remaining_indices_A = setdiff(A_indices, common_indices)
+        remaining_indices_B = setdiff(B_indices, common_indices)
+        remaining_indices = union(remaining_indices_A, remaining_indices_B)
+
+        props = Dict(:cost=>length(common_indices), :indices=>remaining_indices)
+        set_props!(graph, LightGraphs.nv(graph), props)
+    end
+
+    graph
+end
+
+"""
+    function plot_contraction_tree(contraction_tree::MetaGraph{Int64,Float64})
+
+Plotting function to visualise a contraction tree produced by the function
+'create_contraction_tree'.
+"""
+function plot_contraction_tree(contraction_tree::MetaGraph{Int64,Float64})
+    # TODO node sizes are too small for large networks
+    node_costs = [get_prop(contraction_tree, v, :cost)
+                  for v in LightGraphs.vertices(contraction_tree)]
+
+    nodesize = [log(c+1)+1 for c in node_costs]
+
+    num_nodes = sum(nodesize.==1)
+
+    colors = colormap("blues", maximum(node_costs)+1)
+    nodefillc = [c+1 for c in node_costs]
+    nodefillc = colors[nodefillc]
+
+    layout=(args...)->spring_layout(args...; C=0.5)
+
+    gplot(contraction_tree, layout=layout,
+          nodesize=nodesize, nodefillc=nodefillc)
 end

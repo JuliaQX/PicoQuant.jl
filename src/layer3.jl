@@ -21,18 +21,18 @@ export gate_tensor
 
 "Struct to represent a node in tensor network graph"
 struct Node
-    # the indices that the node contains
+    # the indices that the node contains.
     indices::Array{Symbol, 1}
-    # tensor dimensions
+    # tensor dimensions.
     dims::Array{<:Integer, 1}
     # The symbol used to identify the tensor associated with this node.
     data_label::Symbol
 end
 
 """
-    function Node(data_label::Symbol)
+    function Node(node_label::Symbol)
 
-Outer constructor to create an instance of Node with the given data label and no
+Outer constructor to create an instance of Node with the given node label and no
 index labels
 """
 function Node(data_label::Symbol)
@@ -478,7 +478,7 @@ function transpile_circuit(circ,
     # now add measurments to all output qubits
     circ.measure_all()
 
-    if couplings == nothing
+    if couplings === nothing
         couplings = [[i-1, i] for i = 1:n_qubits]
     end
     coupling_map = transpiler.CouplingMap(

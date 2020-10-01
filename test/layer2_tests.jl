@@ -135,6 +135,66 @@ using LinearAlgebra
             end
         end
 
+        @testset "Test netcon contraction function for $backend_name" begin
+            # Create a tensor network to work with.
+            qasm_str = """OPENQASM 2.0;
+                        include "qelib1.inc";
+                        qreg q[3];
+                        h q[0];
+                        cx q[0],q[1];
+                        cx q[0],q[2];
+                        """
+
+            try
+                circ = load_qasm_as_circuit(qasm_str)
+                tn = convert_qiskit_circ_to_network(circ, backend_funcs[:init]())
+                add_input!(tn, "000")
+                add_output!(tn, "000")
+
+                # See if full wavefunction contraction completes.
+                netcon_contraction!(tn)
+
+                backend_funcs[:execute]()
+
+                # Is there only one node left after the contraction?
+                @test begin
+                    length(tn.nodes) == 1
+                end
+            finally
+                backend_funcs[:finalise]()
+            end
+        end
+
+        @testset "Test bgreedy contraction function for $backend_name" begin
+            # Create a tensor network to work with.
+            qasm_str = """OPENQASM 2.0;
+                        include "qelib1.inc";
+                        qreg q[3];
+                        h q[0];
+                        cx q[0],q[1];
+                        cx q[0],q[2];
+                        """
+
+            try
+                circ = load_qasm_as_circuit(qasm_str)
+                tn = convert_qiskit_circ_to_network(circ, backend_funcs[:init]())
+                add_input!(tn, "000")
+                add_output!(tn, "000")
+
+                # See if full wavefunction contraction completes.
+                bgreedy_contraction!(tn)
+
+                backend_funcs[:execute]()
+
+                # Is there only one node left after the contraction?
+                @test begin
+                    length(tn.nodes) == 1
+                end
+            finally
+                backend_funcs[:finalise]()
+            end
+        end
+
         @testset "Test tensor chain compression for $backend_name" begin
 
             @test begin
