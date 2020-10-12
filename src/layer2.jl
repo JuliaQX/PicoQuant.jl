@@ -164,23 +164,25 @@ function full_wavefunction_contraction!(network::TensorNetworkCircuit,
     end
 
     # Permute the indices of the final tensor to have the correct order.
-    output_tensor = Symbol("node_$(network.counters["node"])")
-    node = network.nodes[output_tensor]
-    if length(node.indices) != 0
-        order = [findfirst(x->x==ind, node.indices) for ind in network.output_qubits]
-        node.indices[:] = network.output_qubits[:]
-        permute_tensor(network, output_tensor, order)
+    # output_tensor = new_label!(tn, "node")
+    node = network.nodes[wf]
+    if length(node.indices) != 0 # if not a scalar
+        # use the qubit_ordering to change order of output qubits as required
+        output_qubits = network.output_qubits[network.qubit_ordering]
+        order = [findfirst(x->x==ind, node.indices) for ind in output_qubits]
+        permute_tensor(network, wf, order)
 
         # Reshape the final tensor if a shape is specified by the user.
-        if output_shape == "vector"
-            reshape_tensor(network, output_tensor, [collect(1:length(node.indices))])
+        if output_shape == "vector"            
+            reshape_tensor(network, wf, [collect(1:length(node.indices))])
         elseif output_shape != ""
-            reshape_tensor(network, output_tensor, output_shape)
+            reshape_tensor(network, wf, output_shape)
         end
     end
 
     # save the final tensor under the name "result".
-    save_output(network, output_tensor)
+    save_output(network, wf)
+    wf
 end
 
 
@@ -419,41 +421,47 @@ function compress_tensor_chain!(network::TensorNetworkCircuit,
 
     # forward pass
     for i in 1:(length(nodes) - 1)
-        left_node = network.nodes[nodes[i]]
-        right_node = network.nodes[nodes[i+1]]
-
-        left_indices = setdiff(left_node.indices, right_node.indices)
-        right_indices = setdiff(right_node.indices, left_node.indices)
-
-        combined_node = contract_pair!(network, nodes[i], nodes[i+1])
-
-        decompose_tensor!(network, combined_node, left_indices, right_indices,
-                          left_label=nodes[i],
-                          right_label=nodes[i+1],
-                          threshold=threshold,
-                          max_rank=max_rank
-                         )
+        compress_bond!(network, nodes[i], nodes[i+1], threshold=threshold, max_rank=max_rank)
     end
 
     # now do a backward pass
     for i in (length(nodes) - 1):-1:1
-        left_node = network.nodes[nodes[i]]
-        right_node = network.nodes[nodes[i+1]]
-
-        left_indices = setdiff(left_node.indices, right_node.indices)
-        right_indices = setdiff(right_node.indices, left_node.indices)
-
-        combined_node = contract_pair!(network, nodes[i], nodes[i+1])
-
-        decompose_tensor!(network, combined_node, left_indices, right_indices,
-                          left_label=nodes[i],
-                          right_label=nodes[i+1],
-                          threshold=threshold,
-                          max_rank=max_rank
-                         )
+        compress_bond!(network, nodes[i], nodes[i+1], threshold=threshold, max_rank=max_rank)
     end
 
 end
+
+"""
+    function compress_bond!(network::TensorNetworkCircuit,
+                            node_1::Symbol,
+                            node_2::Symbol;
+                            threshold::AbstractFloat=1e-13,
+                            max_rank::Integer=0)
+
+Compress the virtual bond between the given nodes
+"""
+function compress_bond!(network::TensorNetworkCircuit,
+                        node_1::Symbol,
+                        node_2::Symbol;
+                        threshold::AbstractFloat=1e-13,
+                        max_rank::Integer=0)
+
+    left_node = network.nodes[node_1]
+    right_node = network.nodes[node_2]
+
+    left_indices = setdiff(left_node.indices, right_node.indices)
+    right_indices = setdiff(right_node.indices, left_node.indices)
+
+    combined_node = contract_pair!(network, node_1, node_2)
+
+    decompose_tensor!(network, combined_node, left_indices, right_indices,
+                        left_label=node_1,
+                        right_label=node_2,
+                        threshold=threshold,
+                        max_rank=max_rank
+                        )
+end
+
 
 """
     function decompose_tensor!(tng::TensorNetworkCircuit,
@@ -577,7 +585,6 @@ function contract_mps_tensor_network_circuit!(network::TensorNetworkCircuit;
         gate_layers = vcat(gate_layers, [-1])
     end
 
-    # gate_nodes = setdiff(collect(keys(network.nodes)), mps_nodes)
     bond_counts = zeros(Int, qubits-1)
     for gate_layer in gate_layers
         nodes = layer_nodes[gate_layer]
@@ -599,12 +606,13 @@ function contract_mps_tensor_network_circuit!(network::TensorNetworkCircuit;
             bond_counts[updated_indices[i]] += 1
         end
 
-        if maximum(bond_counts) > max_bond
-            compress_tensor_chain!(network, mps_nodes, threshold=threshold, max_rank=max_rank)
-            bond_counts[:] .= 0
+        for bond_idx in 1:qubits-1
+            if bond_counts[bond_idx] > 0
+                compress_bond!(network, mps_nodes[bond_idx], mps_nodes[bond_idx + 1], threshold=threshold, max_rank=max_rank)
+                bond_counts[bond_idx] = 0
+            end
         end
     end
-    compress_tensor_chain!(network, mps_nodes, threshold=threshold, max_rank=max_rank)
 
     # save the final mps tensors
     for (i, node) in enumerate(mps_nodes)

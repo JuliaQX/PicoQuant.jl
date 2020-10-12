@@ -10,7 +10,10 @@ using HDF5
                     cx q[1],q[2];"""
 
         circ = load_qasm_as_circuit(qasm_str)
-        tng = convert_qiskit_circ_to_network(circ, DSLBackend())
+        tng = convert_qiskit_circ_to_network(circ, DSLBackend("contract_network.tl",
+                                                              "tensor_data.h5",
+                                                              "",
+                                                              true))
         add_input!(tng, "000")
         add_output!(tng, "000")
         plan = random_contraction_plan(tng)
@@ -30,13 +33,8 @@ using HDF5
 
         finally
             # Clean up any files created.
-            if isfile("contract_network.tl")
-                rm("contract_network.tl")
-            end
-
-            if isfile("tensor_data.h5")
-                rm("tensor_data.h5")
-            end
+            rm("contract_network.tl", force=true)
+            rm("tensor_data.h5", force=true)
         end
     end
 

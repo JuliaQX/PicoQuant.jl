@@ -44,12 +44,13 @@ function get_statevector_using_picoquant(circ; big_endian=false)
     tn = convert_qiskit_circ_to_network(circ, InteractiveBackend(), decompose=false, transpile=false)
     qubits = circ.n_qubits
     add_input!(tn, "0"^qubits)
-    full_wavefunction_contraction!(tn)    
-    node = iterate(values(tn.nodes))[1]
-    idx_order = [findfirst(x -> x == i, node.indices) for i in tn.output_qubits]
+    full_wavefunction_contraction!(tn)
+    result_tensor = load_tensor_data(tn, :result)
+    dims = size(result_tensor)
     if !big_endian
-        idx_order = idx_order[end:-1:1]
+        index_order = length(dims):-1:1
+        result_tensor = permutedims(result_tensor, index_order)
     end
-    reshape(permutedims(tn.backend.tensors[:result], idx_order), 2^qubits)
+    reshape(result_tensor, prod(dims))
 end
 

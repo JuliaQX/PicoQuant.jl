@@ -6,22 +6,27 @@ export create_ghz_preparation_circuit
 export create_RQC
 
 """
-    function create_qft_circuit(qubits::Integer)
+    function create_qft_circuit(n::Integer, m::Integer=-1)
 
-Generate QFT circuit acting on given number of qubits
+Generate QFT circuit acting on n qubits with approximation parameter m. To no approximation
+m is set to -1 which is the default value.
 """
-function create_qft_circuit(qubits::Integer)
+function create_qft_circuit(n::Integer, m::Integer=-1)
     qiskit = pyimport("qiskit")
-    circ = qiskit.QuantumCircuit(qubits)
-    for i in 1:qubits
+    circ = qiskit.QuantumCircuit(n)
+    m = (m == -1) ? n : m # if m is -1 then do not truncate
+    for i in 1:n
         circ.h(i-1)
-        for j in i:qubits-1
-            circ.cu1(π/(2^(j-i+1)), j, i-1)
+        for j in i:n-1
+            if j - i < m
+                circ.cu1(π/(2^(j-i+1)), j, i-1)
+            end
         end
         circ.barrier()
     end
-    for i = 1:convert(Integer, floor(qubits//2))
-        circ.swap(i - 1, qubits - i)
+    # TODO: do not add swap gates but return ordering information instead
+    for i = 1:convert(Integer, floor(n//2))
+        circ.swap(i - 1, n - i)
     end
     circ
 end
@@ -36,7 +41,7 @@ Create a simple preparation circuit which mixes
 function create_simple_preparation_circuit(qubits::Integer,
                                            depth::Integer,
                                            seed::Union{Integer, Nothing}=nothing)
-    if seed == nothing
+    if seed === nothing
         rng = MersenneTwister()
     else
         rng = MersenneTwister(seed)

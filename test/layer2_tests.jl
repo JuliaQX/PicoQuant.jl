@@ -16,7 +16,7 @@ using LinearAlgebra
 
     """Dictionary of init and finalise methods for testing backends"""
     backends = Dict("DSLBackend" =>
-                    Dict(:init => DSLBackend,
+                    Dict(:init => () -> DSLBackend("contract_network.tl", "tensor_data.h5", "", true),
                         :execute => execute_dsl_file,
                         :finalise => dsl_backend_teardown),
 
@@ -195,6 +195,42 @@ using LinearAlgebra
             end
         end
 
+        @testset "Test full wavefunction and MPS contractions match for $backend_name" begin
+
+            try
+                circ = create_simple_preparation_circuit(3, 1).compose(create_ghz_preparation_circuit(3))
+
+                # simulate with full wf approach
+                tn = convert_qiskit_circ_to_network(circ, backend_funcs[:init](), decompose=true, transpile=true)
+                add_input!(tn, "0"^tn.number_qubits)
+
+                # See if full wavefunction contraction completes.
+                full_wavefunction_contraction!(tn, "vector")
+
+                backend_funcs[:execute]()
+
+                full_wf = load_tensor_data(tn, :result)
+
+                tn = convert_qiskit_circ_to_network(circ, backend_funcs[:init](), decompose=true, transpile=true)
+                add_input!(tn, "0"^tn.number_qubits)
+
+                # See if full wavefunction contraction completes.
+                mps_nodes = contract_mps_tensor_network_circuit!(tn)
+                calculate_mps_amplitudes!(tn, mps_nodes)
+
+                backend_funcs[:execute]()
+
+                mps_wf = load_tensor_data(tn, :result)
+
+                # Is there only one node left after the contraction?
+                @test begin
+                    mps_wf ≈ full_wf
+                end
+            finally
+                backend_funcs[:finalise]()
+            end
+        end
+
         @testset "Test tensor chain compression for $backend_name" begin
 
             @test begin
@@ -295,8 +331,8 @@ using LinearAlgebra
                     tn = TensorNetworkCircuit(2, backend_funcs[:init]())
                     add_gate!(tn, random_gate_data, [1, 2])
 
-                    threshold = 1.0
-                    # decompose gate between qubits with threshold of 1.0
+                    threshold = 0.5
+                    # decompose gate between qubits with threshold of 0.5
                     new_nodes = decompose_tensor!(tn,
                                                 :node_1,
                                                 [:index_1, :index_3],
@@ -309,7 +345,8 @@ using LinearAlgebra
                     # decompose gate data manually and check threshold was applied
                     F = svd(reshape(permutedims(random_gate_data, (1, 3, 2, 4)), (d^2, d^2)))
 
-                    expected_dim = sum(F.S .> threshold)
+                    S_norm = sqrt(sum(F.S .^ 2))
+                    expected_dim = sum(F.S ./ S_norm .> threshold)
                     virtual_bonds = virtualedges(tn, new_nodes[1])
                     bond_idx = findfirst(x -> x == virtual_bonds[1], tn.nodes[new_nodes[1]].indices)
                     size(load_tensor_data(tn, new_nodes[1]))[bond_idx] == expected_dim
@@ -356,19 +393,29 @@ using LinearAlgebra
                         circ = create_simple_preparation_circuit(n, 2).compose(create_qft_circuit(n))
 
                         # contract the regular way
-                        tn = convert_qiskit_circ_to_network(circ, decompose=true, transpile=true)
+                        tn = convert_qiskit_circ_to_network(circ,
+                                                            backend_funcs[:init](),
+                                                            decompose=true,
+                                                            transpile=true)
                         add_input!(tn, "0"^n)
-                        wf = full_wavefunction_contraction!(tn, "vector")
+                        full_wavefunction_contraction!(tn, "vector")
+                        backend_funcs[:execute]()
+                        wf = load_tensor_data(tn, :result)
 
                         # now decompose to 4 partitions and contract each partition separately
                         N = 4
                         wfs = []
                         for p in 1:N
-                            tn = convert_qiskit_circ_to_network(circ, decompose=true, transpile=true)
+                            tn = convert_qiskit_circ_to_network(circ,
+                                                                backend_funcs[:init](),
+                                                                decompose=true,
+                                                                transpile=true)
                             add_input!(tn, "0"^n)
                             bond_labels, bond_values = partition_network_on_virtual_bonds(tn, N, p)
                             slice_tensor_network(tn, bond_labels, bond_values)
-                            push!(wfs, full_wavefunction_contraction!(tn, "vector"))
+                            full_wavefunction_contraction!(tn, "vector")
+                            backend_funcs[:execute]()
+                            push!(wfs, load_tensor_data(tn, :result))
                         end
                         sum(wfs) ≈ wf
                     finally

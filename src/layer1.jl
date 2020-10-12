@@ -141,16 +141,17 @@ function decompose_tensor(tensor::Array{<:Number},
     F = svd(A)
 
     # find number of singular values above the threshold
-    chi = sum(F.S .> threshold)
+    s_norm = sqrt(sum(F.S .^ 2))
+    chi = sum(F.S ./ s_norm .> threshold)
     if max_rank > 0
         chi = min(max_rank, chi)
     end
-    s = sqrt.(F.S[1:chi])
+    S_sqrt = sqrt.(F.S[1:chi])
 
     # assume that singular values and basis of U and V matrices are sorted
     # in descending order of singular value
-    B = reshape(F.U[:, 1:chi] * Diagonal(s), Tuple(vcat(left_dims, [chi,])))
-    C = reshape(Diagonal(s) * F.Vt[1:chi, :], Tuple(vcat([chi,], right_dims)))
+    B = reshape(F.U[:, 1:chi] * Diagonal(S_sqrt), Tuple(vcat(left_dims, [chi,])))
+    C = reshape(Diagonal(S_sqrt) * F.Vt[1:chi, :], Tuple(vcat([chi,], right_dims)))
 
     B, C, chi
 end
@@ -270,7 +271,7 @@ function execute_dsl_file(dsl_filename::String="contract_network.tl",
             tensors[B_label] = B
             tensors[C_label] = C
         elseif command[1] == "view"
-            view_label, node_label, bond_idx, bond_range = command[2, 5]
+            view_label, node_label, bond_idx, bond_range = command[2:5]
 
             view_label = Symbol(view_label)
             node_label = Symbol(node_label)
