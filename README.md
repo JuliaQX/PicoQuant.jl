@@ -36,7 +36,7 @@ during the build. See below for details about using different python environment
 
 ```
 ]activate .
-]instantiate .
+]instantiate
 ]build PicoQuant
 ```
 
