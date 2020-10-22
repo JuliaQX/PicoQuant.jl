@@ -10,7 +10,7 @@ export QuickBB_contraction!, QuickBB_contraction_plan
          * Enforce assumption that input graph G is connected. =#
 
 """
-    function QuickBB(G::TensorNetworkCircuit)
+    QuickBB(G::TensorNetworkCircuit)
 
 Use a contraction plan found by the QuickBB method to contract the given
 TensorNetworkCircuit.
@@ -23,7 +23,7 @@ function QuickBB_contraction!(tn::TensorNetworkCircuit,
 end
 
 """
-    function QuickBB(G::TensorNetworkCircuit)
+    QuickBB(G::TensorNetworkCircuit)
 
 Use QuickBB method to find a contraction plan for a given TensorNetworkCircuit
 """
@@ -68,7 +68,7 @@ end
 
 
 """
-    function QuickBB(G::AbstractGraph)
+    QuickBB(G::AbstractGraph)
 
 Implements the Treewidth Branch and Bound algorithm as described in:
 https://arxiv.org/abs/1207.4109
@@ -109,7 +109,9 @@ function BB(G::AbstractGraph, x)
 end
 
 """
-function to remove vertices from G according to the
+    reduce_graph(G::AbstractGraph, x)
+
+Function to remove vertices from G according to the
 simplicial-vertex-rule and the almost-simplicial-vertex-rule.
 """
 function reduce_graph(G::AbstractGraph, x)
@@ -125,7 +127,11 @@ function reduce_graph(G::AbstractGraph, x)
     end
 end
 
-# Function to find a vertex which is simplicial or almost simplicial.
+"""
+    get_vertex_that_can_be_eliminated(cliqueness_map)
+
+Function to find a vertex which is simplicial or almost simplicial.
+"""
 function get_vertex_that_can_be_eliminated(cliqueness_map)
     for (vi, cli_vi) in pairs(cliqueness_map)
         if cli_vi == 0 || (cli_vi == 1 && lg.degree(G, vi) < h)
@@ -141,7 +147,7 @@ end
 # *************************************************************************** #
 
 """
-    function min_fill_ub(G::AbstractGraph)
+    min_fill_ub(G::AbstractGraph)
 
 Returns the upper bound on the tree width of G found using the min-fill
 heuristic.
@@ -168,7 +174,7 @@ end
 
 
 """
-    function minor_min_width(G::AbstractGraph)
+    minor_min_width(G::AbstractGraph)
 
 Returns the lower bound on the tree width of G found by minor-min-width
 algorithm.
@@ -194,7 +200,7 @@ end
 
 
 """
-    function cliqueness(G::AbstractGraph, v::)
+    cliqueness(G::AbstractGraph, v::)
 
 Return the number of edges that need to be added to G in order to make the
 neighborhood of v simplicial.
@@ -215,7 +221,7 @@ end
 
 
 """
-    function eliminate!(G::AbstractGraph, v::Int)
+    eliminate!(G::AbstractGraph, v::Int)
 
 Connect all the neighbors of v together before removing v from G.
 """
@@ -232,7 +238,7 @@ end
 
 
 """
-    function contract_vertices!(G::AbstractGraph, u::Int, v::Int)
+    contract_vertices!(G::AbstractGraph, u::Int, v::Int)
 
 Replaces vertices u and v with a new vertex and connects it all the neighbors
 of u and v.

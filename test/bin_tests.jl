@@ -1,3 +1,10 @@
+module BinTests
+
+using Test
+
+using PicoQuant
+include("test_utils.jl")
+
 @testset "Test executable files in PicoQuant/bin" begin
     gen_qft_circuit_executed = false
     qasm2tn_executed = false
@@ -72,4 +79,5 @@
     @test tn2plan_executed == true
     @test contract_tn_executed == true
     @test contract_qasm_executed == true
+end
 end

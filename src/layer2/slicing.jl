@@ -3,7 +3,7 @@ export multi_index_partition, partition_network_on_virtual_bonds
 export replace_with_view!, slice_tensor_network
 
 """
-    function multi_index_partition(dims::Tuple{Vararg{Int64, N}},
+    multi_index_partition(dims::Tuple{Vararg{Int64, N}},
                                    number_partitions::Int,
                                    partition::Int) where N
 
@@ -27,7 +27,7 @@ end
 
 
 """
-    function partition_network_on_virtual_bonds(tn::TensorNetworkCircuit,
+    partition_network_on_virtual_bonds(tn::TensorNetworkCircuit,
                                                 number_partitions::Int64,
                                                 partition::Int64)
 
@@ -57,7 +57,7 @@ function partition_network_on_virtual_bonds(network::TensorNetworkCircuit,
 end
 
 """
-    function replace_with_view!(network::TensorNetworkCircuit,
+    replace_with_view!(network::TensorNetworkCircuit,
                                 node_label::Symbol,
                                 bond_label::Symbol,
                                 bond_range::UnitRange{Int})
@@ -93,7 +93,7 @@ function replace_with_view!(network::TensorNetworkCircuit,
 end
 
 """
-function slice_tensor_network(network::TensorNetworkCircuit,
+    slice_tensor_network(network::TensorNetworkCircuit,
                               bond_labels::Array{Symbol, 1},
                               bond_values::CartesianIndex)
 """

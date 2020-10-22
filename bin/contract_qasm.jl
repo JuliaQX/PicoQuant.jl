@@ -8,7 +8,7 @@ using ArgParse
 using JSON
 
 """
-    function parse_commandline()
+    parse_commandline()
 
 Parse command line options and return argument dictionary
 """

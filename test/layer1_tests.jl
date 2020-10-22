@@ -1,4 +1,11 @@
+module Layer1Tests
+
+using Test
 using HDF5
+
+using PicoQuant
+include("test_utils.jl")
+
 
 @testset "Layer 1 tests" begin
     @testset "Test executing dsl commands from file" begin
@@ -21,7 +28,7 @@ using HDF5
         try
             # Try executing the dsl commands created by contract_network!().
             contract_network!(tng, plan)
-            execute_dsl_file("contract_network.tl", "tensor_data.h5")
+            execute_dsl_file(Array{ComplexF64}, "contract_network.tl", "tensor_data.h5")
 
             # Check if the correct amplitube was computed
             @test begin
@@ -55,4 +62,5 @@ using HDF5
         tensors[:A] = reshape_tensor(tensors[:A], 4)
         @test tensors[:A] == [1-1im, -1im, 1im, 2.0]
     end
+end
 end

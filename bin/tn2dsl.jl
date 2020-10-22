@@ -8,7 +8,7 @@ using JSON
 using HDF5
 
 """
-    function parse_commandline()
+    parse_commandline()
 
 Parse command line options and return argument dictionary
 """
@@ -62,7 +62,7 @@ function main(ARGS)
         for node_label in keys(tng.nodes)
             node_label_str = String(node_label)
             data = read(file, node_label_str)
-            save_tensor_data(tng, node_label, node_label, data)
+            save_tensor_data(tng, node_label, data)
         end
     end
 

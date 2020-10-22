@@ -6,7 +6,7 @@ export create_ghz_preparation_circuit
 export create_RQC
 
 """
-    function create_qft_circuit(n::Int, m::Int=-1)
+    create_qft_circuit(n::Int, m::Int=-1)
 
 Generate QFT circuit acting on n qubits with approximation parameter m. To no approximation
 m is set to -1 which is the default value.
@@ -32,7 +32,7 @@ function create_qft_circuit(n::Int, m::Int=-1)
 end
 
 """
-    function create_simple_preparation_circuit(qubits::Int,
+    create_simple_preparation_circuit(qubits::Int,
                                                depth::Int,
                                                seed::Int=nothing)
 
@@ -72,7 +72,7 @@ function create_simple_preparation_circuit(qubits::Int,
 end
 
 """
-    function create_ghz_preparation_circuit(qubits::Int)
+    create_ghz_preparation_circuit(qubits::Int)
 
 Create a ghz preparation circuit
 """
@@ -122,7 +122,7 @@ function RQC(n::Int, m::Int)
 end
 
 """
-    function random_gate!(rqc::RQC, i::Int, j::Int)
+    random_gate!(rqc::RQC, i::Int, j::Int)
 
 Returns the gate name for the next single qubit gate to be applied to the qubit
 at (i, j).
@@ -139,7 +139,7 @@ function random_gate!(rqc::RQC, i::Int, j::Int, rng::MersenneTwister)
 end
 
 """
-    function patterns(rqc::RQC)
+    patterns(rqc::RQC)
 
 Generate a dictionary of patterns of qubit pairs to apply two qubit gates to.
 The patterns are numbers 1 to 8 like in Boxio_2018 but in a different order.
@@ -166,7 +166,7 @@ function patterns(rqc::RQC)
 end
 
 """
-    function out_of_bounds(rqc::RQC, targets::Array{Array{Int, 1}, 1})
+    out_of_bounds(rqc::RQC, targets::Array{Array{Int, 1}, 1})
 
 Check if any of the qubits, in the given qubit pair, are out of bounds.
 """

@@ -7,7 +7,7 @@ using ArgParse
 using PicoQuant
 
 """
-    function parse_commandline()
+    parse_commandline()
 
 Parse command line options and return argument dictionary
 """

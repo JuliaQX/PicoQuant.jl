@@ -2,6 +2,7 @@ export load_tensor!, save_tensor!, delete_tensor!, contract_tensors, view!
 export reshape_tensor, transpose_tensor, conjugate_tensor, execute_dsl_file
 export decompose_tensor, permute_tensor, tensor_view
 
+using CUDA
 using TensorOperations, HDF5
 using JSON
 
@@ -9,38 +10,38 @@ using JSON
 #                             dsl functions
 # *************************************************************************** #
 """
-    function load_tensor!(tensors::Dict{Symbol, Array{T}},
+    load_tensor!(tensors::Dict{Symbol, Array{T}},
                           tensor_label::String,
                           data_label::String,
-                          tensor_data_filename::String) where {T <: Number}
+                          tensor_data_filename::String) where T <: Number
 
 Load tensor data, identified by tensor_label, from a .h5 file and store
 it in the dictionary 'tensors'
 """
-function load_tensor!(tensors::Dict{Symbol, Array{T}},
+function load_tensor!(tensors::Dict{Symbol, T},
                       tensor_label::String,
                       data_label::String,
-                      tensor_data_filename::String) where {T <: Number}
+                      tensor_data_filename::String) where T <: AbstractArray
 
     tensor = Symbol(tensor_label)
     tensors[tensor] = h5open(tensor_data_filename, "r") do file
-        convert(Array{T}, read(file, data_label))
+        convert(T, read(file, data_label))
     end
 end
 
 """
-    function save_tensor!(tensor_data_filename::String,
-                          tensors::Dict{Symbol, Array{T}},
-                          tensor_label::String,
-                          group_name::String="") where {T <: Number}
+    save_tensor!(tensor_data_filename::String,
+                 tensors::Dict{Symbol, <: AbstractArray},
+                 tensor_label::String,
+                 group_name::String="")
 
 Save tensor data to a .h5 file. If no group name is given for the data the
 label that identifies the tensor in the dictionary 'tensors' is used.
 """
 function save_tensor!(tensor_data_filename::String,
-                      tensors::Dict{Symbol, Array{T}},
+                      tensors::Dict{Symbol, <: AbstractArray},
                       tensor_label::String,
-                      group_name::String="") where {T <: Number}
+                      group_name::String="")
 
     # If no group name given then use the tensor label.
     if group_name == ""
@@ -56,94 +57,96 @@ function save_tensor!(tensor_data_filename::String,
         end
     end
     tensor_label = Symbol(tensor_label)
+    #FIXME: This is used for testing purposes only :FIXME
+    # h5write(tensor_data_filename, group_name, tensors[tensor_label])
     h5write(tensor_data_filename, group_name, tensors[tensor_label])
 end
 
 """
-    function delete_tensor!(tensors::Dict{Symbol, Array{T}},
-                            tensor_label::String) where {T <: Number}
+    delete_tensor!(tensors::Dict{Symbol, <: AbstractArray,
+                            tensor_label::String) 
 
 Delete the specified tensor from the dictionary 'tensors'
 """
-function delete_tensor!(tensors::Dict{Symbol, Array{T}},
-                        tensor_label::String) where {T <: Number}
+function delete_tensor!(tensors::Dict{Symbol, <: AbstractArray},
+                        tensor_label::String)
 
     delete!(tensors, Symbol(tensor_label))
 end
 
 """
-    function contract_tensors(tensors_to_contract::Tuple{Array{T}, Array{T}},
-                              tensor_indices::Tuple{Array{Int,1},Array{Int,1}}) where {T <: Number}
+    contract_tensors(tensors_to_contract::Tuple{<: AbstractArray, <: AbstractArray},
+                     tensor_indices::Tuple{Array{Int,1},Array{Int,1}})
 
 Function to contract the tensors contained in the tuple 'tensors_to_contract'
 according to the ncon indices given and return the result.
 """
-function contract_tensors(tensors_to_contract::Tuple{Array{T}, Array{T}},
-                          tensor_indices::Tuple{Array{Int,1},Array{Int,1}}) where {T <: Number}
-    a_idx = Tuple(tensor_indices[1]);
-    b_idx = Tuple(tensor_indices[2]);
+function contract_tensors(tensors_to_contract::Tuple{<: AbstractArray, <: AbstractArray},
+                          tensor_indices::Tuple{Array{Int,1},Array{Int,1}})
+    a_idx = Tuple(tensor_indices[1])
+    b_idx = Tuple(tensor_indices[2])
     tensorcontract(tensors_to_contract[1], a_idx,
                    tensors_to_contract[2], b_idx,
                    Tuple(symdiff(a_idx,b_idx)))
 end
 
 """
-    function reshape_tensor(tensor::Array{T},
-                            dims::Union{Int, Array{Int,1}}) where {T <: Number}
+    reshape_tensor(tensor::AbstractArray,
+                            dims::Union{Int, Array{Int,1}})
 
 Reshape a tensor
 """
-function reshape_tensor(tensor::Array{T},
-                        dims::Union{Int, Array{Int, 1}}) where {T <: Number}
+function reshape_tensor(tensor::AbstractArray,
+                        dims::Union{Int, Array{Int,1}})
     reshape(tensor, dims...)
 end
 
 """
-    function permute_tensor(tensor::Array{T},
-                            dims::Union{Int, Array{Int,1}}) where {T <: Number}
+    function permute_tensor(tensor::AbstractArray,
+                            dims::Union{Int, Array{Int,1}}) 
 
 Permute a tensor
 """
-function permute_tensor(tensor::Array{T},
-                        dims::Union{Int, Array{Int, 1}}) where {T <: Number}
+function permute_tensor(tensor::AbstractArray,
+                        dims::Union{Int, Array{Int, 1}})
     permutedims(tensor, dims)
 end
 
 """
-    function transpose_tensor(tensor::Array{T},
-                              index_permutation::Array{Int, 1}) where {T <: Number}
+    transpose_tensor(tensor::AbstractArray,
+                              index_permutation::Array{Int, 1})
 
 Transpose a tensor by permuting the indices as specified in index_permutation.
 """
-function transpose_tensor(tensor::Array{T},
-                        index_permutation::Array{Int, 1}) where {T <: Number}
+function transpose_tensor(tensor::AbstractArray,
+                        index_permutation::Array{Int, 1})
     permutedims(tensor, index_permutation)
 end
 
 """
-    function conjugate_tensor(tensor::Array{T}) where {T <: Number}
+    function conjugate_tensor(tensor::AbstractArray)
 
 Conjugate the elements of a tensor.
 """
-function conjugate_tensor(tensor::Array{T}) where {T <: Number}
+function conjugate_tensor(tensor::AbstractArray)
     conj.(tensor)
 end
 
 """
-    function decompose_tensor(tensor::Array{T},
-                               left_positions::Array{Int, 1},
-                               right_positions::Array{Int, 1};
-                               threshold::AbstractFloat=1e-13,
-                               max_rank::Int=0) where {T <: Number}
+    decompose_tensor(tensor::AbstractArray{<: T},
+                     left_positions::Array{Int, 1},
+                     right_positions::Array{Int, 1};
+                     threshold::AbstractFloat=1e-13,
+                     max_rank::Int=0) where T <: Number
 
 Function to decompose a single tensor into two tensors and return the dimension
 of the newly created virtual edge.
 """
-function decompose_tensor(tensor::Array{T},
+function decompose_tensor(tensor::AbstractArray{<: T},
                           left_positions::Array{Int, 1},
                           right_positions::Array{Int, 1};
                           threshold::AbstractFloat=1e-13,
-                          max_rank::Int=0) where {T <: Number}
+                          max_rank::Int=0) where T <: Number
 
     dims = size(tensor)
     left_dims = [dims[x] for x in left_positions]
@@ -159,6 +162,9 @@ function decompose_tensor(tensor::Array{T},
         # if divide and conquer approach fails fallback to QRIteration approach
         svd(A, alg=LinearAlgebra.QRIteration)
     end
+
+    # ensure that the threshold is at least equal to the precision
+    threshold = max(threshold, eps(real(T)))
 
     # find number of singular values above the threshold
     s_norm = sqrt(sum(F.S .^ 2))
@@ -177,7 +183,7 @@ function decompose_tensor(tensor::Array{T},
 end
 
 """
-    function tensor_view(node_data, bond_idx, bond_range)
+    tensor_view(node_data, bond_idx, bond_range)
 
 Create a view on the given tensor
 """
@@ -193,9 +199,9 @@ end
 # *************************************************************************** #
 
 """
-    function execute_dsl_file(::Type{T}, dsl_filename::String="contract_network.tl",
+    execute_dsl_file(::Type{T}, dsl_filename::String="contract_network.tl",
                             tensor_data_filename::String="tensor_data.h5",
-                            output_data_filename::String="") where {T <: Number}
+                            output_data_filename::String="") where T <: AbstractArray
 
 Function to read dsl commands from a given dsl file and execute them using
 tensor data from the given tensor data file.
@@ -203,13 +209,13 @@ The type of tensor storage to use for the simulation is specified by the first a
 """
 function execute_dsl_file(::Type{T}, dsl_filename::String="contract_network.tl",
                          tensor_data_filename::String="tensor_data.h5",
-                         output_data_filename::String="") where {T <: Number}
+                         output_data_filename::String="") where T <: AbstractArray
 
     # Open file to read dsl commands from.
     file = open(dsl_filename)
 
     # Create dictionary to hold tensors
-    tensors = Dict{Symbol, Array{T}}()
+    tensors = Dict{Symbol, T}()
 
     # Read each line of the dsl file and execute specified functions.
     for command in eachline(file)
@@ -308,16 +314,16 @@ function execute_dsl_file(::Type{T}, dsl_filename::String="contract_network.tl",
 end
 
 """
-    function execute_dsl_file(dsl_filename::String="contract_network.tl",
+    execute_dsl_file(dsl_filename::String="contract_network.tl",
                               tensor_data_filename::String="tensor_data.h5",
-                              output_data_filename::String="") where {T <: Number}
+                              output_data_filename::String="")
 
 Function to read dsl commands from a given dsl file and execute them using
 tensor data from the given tensor data file.
 If the type of tensor storage to use is not specified, it defaults to Array{ComplexF32}
 """
 function execute_dsl_file(dsl_filename::String="contract_network.tl",
-                        tensor_data_filename::String="tensor_data.h5",
-                        output_data_filename::String="")
-    execute_dsl_file(ComplexF32, dsl_filename, tensor_data_filename, output_data_filename)
+                          tensor_data_filename::String="tensor_data.h5",
+                          output_data_filename::String="")
+    execute_dsl_file(Array{ComplexF32}, dsl_filename, tensor_data_filename, output_data_filename)
 end

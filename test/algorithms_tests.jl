@@ -1,4 +1,11 @@
+module AlgorithmTests
+
+using Test
+using HDF5
 using FFTW
+
+using PicoQuant
+include("test_utils.jl")
 
 @testset "Algorithm tests" begin
     @testset "Test state preparation algorithm" begin
@@ -106,4 +113,5 @@ using FFTW
             overlap(picoquant_ψ, qiskit_Ψ) ≈ 1.
         end
     end
+end
 end

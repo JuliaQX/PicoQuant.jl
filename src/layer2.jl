@@ -17,6 +17,11 @@ include("layer2/quickbb_contraction.jl")
 using HDF5
 
 
+"""
+    merge_common_bonds!(network::TensorNetworkCircuit, a_label::Symbol, b_label::Symbol)
+
+Merge the common bonds between two nodes
+"""
 function merge_common_bonds!(network::TensorNetworkCircuit, a_label::Symbol, b_label::Symbol)
     a = network.nodes[a_label]
     b = network.nodes[b_label]
@@ -64,7 +69,7 @@ function merge_common_bonds!(network::TensorNetworkCircuit, a_label::Symbol, b_l
 end
 
 """
-    function inorder_contraction!(network::TensorNetworkCircuit)
+    inorder_contraction!(network::TensorNetworkCircuit)
 
 Function to contract the network in order starting from input nodes
 """
@@ -103,7 +108,7 @@ function inorder_contraction!(network::TensorNetworkCircuit)
 end
 
 """
-    function random_contraction_plan(network::TensorNetworkCircuit)
+    random_contraction_plan(network::TensorNetworkCircuit)
 
 Function to create a random contraction plan
 """
@@ -113,7 +118,7 @@ function random_contraction_plan(network::TensorNetworkCircuit)
 end
 
 """
-    function full_wavefunction_contraction!(network::TensorNetworkCircuit,
+    full_wavefunction_contraction!(network::TensorNetworkCircuit,
                                             output_shape::Union{String, Array{Int, 1}}="")
 
 Function to contract a network by first contracting input nodes together, to
@@ -191,7 +196,7 @@ end
 # *************************************************************************** #
 
 """
-    function sort_indices(A::Node, B::Node)
+    sort_indices(A::Node, B::Node)
 
 This function divides all of the indices of two nodes A and B into two arrays,
 one array for all the shared indices between A and B and a second array for all
@@ -207,7 +212,7 @@ function sort_indices(A::Node, B::Node)
 end
 
 """
-    function create_ncon_indices(A::Node, B::Node,
+    create_ncon_indices(A::Node, B::Node,
                                  common_indices::Array{Symbol, 1},
                                  uncommon_indices::Array{Symbol, 1})
 
@@ -231,7 +236,7 @@ function create_ncon_indices(A::Node, B::Node,
 end
 
 """
-    function contract_network!(network::TensorNetworkCircuit,
+    contract_network!(network::TensorNetworkCircuit,
                                plan::Array{Symbol, 1},
                                output_shape::Union{String, Array{Int, 1}})
 
@@ -275,7 +280,7 @@ function contract_network!(network::TensorNetworkCircuit,
 end
 
 """
-    function contract_network!(network::TensorNetworkCircuit,
+    contract_network!(network::TensorNetworkCircuit,
                                plan::Array{Array{Symbol, 1}, 1},
                                output_shape::Union{String, Array{Int, 1}, 1})
 
@@ -312,7 +317,7 @@ function contract_network!(network::TensorNetworkCircuit,
 end
 
 """
-    function contract_pair!(network::TensorNetworkCircuit,
+    contract_pair!(network::TensorNetworkCircuit,
                             edge::Symbol)
 
 Contract a pair of nodes connected by the given edge.
@@ -328,7 +333,7 @@ function contract_pair!(network::TensorNetworkCircuit,
 end
 
 """
-    function contract_pair!(network::TensorNetworkCircuit,
+    contract_pair!(network::TensorNetworkCircuit,
                             A_label::Symbol,
                             B_label::Symbol)
 
@@ -400,7 +405,7 @@ end
 # *************************************************************************** #
 
 """
-    function compress_tensor_chain!(network::TensorNetworkCircuit,
+    compress_tensor_chain!(network::TensorNetworkCircuit,
                                     nodes::Array{Symbol, 1};
                                     threshold::AbstractFloat=1e-13,
                                     max_rank::Int=0)
@@ -432,7 +437,7 @@ function compress_tensor_chain!(network::TensorNetworkCircuit,
 end
 
 """
-    function compress_bond!(network::TensorNetworkCircuit,
+    compress_bond!(network::TensorNetworkCircuit,
                             node_1::Symbol,
                             node_2::Symbol;
                             threshold::AbstractFloat=1e-13,
@@ -464,7 +469,7 @@ end
 
 
 """
-    function decompose_tensor!(tng::TensorNetworkCircuit,
+    decompose_tensor!(tng::TensorNetworkCircuit,
                                node::Symbol
                                left_indices::Array{Symbol, 1},
                                right_indices::Array{Symbol, 1};
@@ -545,13 +550,14 @@ function decompose_tensor!(network::TensorNetworkCircuit,
     # add new edge
     network.edges[index_label] = Edge(B_label, C_label, nothing, true)
 
+    delete_tensor!(network, node_label)
     delete!(network.nodes, node_label)
 
     (B_label, C_label)
 end
 
 """
-    function contract_mps_tensor_network_circuit(network::TensorNetworkCircuit;
+    contract_mps_tensor_network_circuit(network::TensorNetworkCircuit;
                                                  max_bond::Int=2,
                                                  threshold::AbstractFloat=1e-13,
                                                  max_rank::Int=0)
@@ -622,7 +628,7 @@ function contract_mps_tensor_network_circuit!(network::TensorNetworkCircuit;
 end
 
 """
-    function calculate_mps_amplitudes!(network::TensorNetworkCircuit,
+    calculate_mps_amplitudes!(network::TensorNetworkCircuit,
                                       mps_nodes::Array{Symbol, 1},
                                       result::String="result")
 

@@ -1,7 +1,13 @@
+module Layer2Tests
+
+using Test
 using HDF5
 using RandomMatrices
 using LinearAlgebra
 
+using PicoQuant
+
+include("test_utils.jl")
 
 @testset "Layer 2 tests" begin
     """
@@ -17,6 +23,7 @@ using LinearAlgebra
     """Dictionary of init and finalise methods for testing backends"""
     backends = Dict("DSLBackend" =>
                     Dict(:init => () -> DSLBackend("contract_network.tl", "tensor_data.h5", "", true),
+                        # :execute => (args...) -> execute_dsl_file(ComplexF64, args...),
                         :execute => execute_dsl_file,
                         :finalise => dsl_backend_teardown),
 
@@ -446,4 +453,5 @@ using LinearAlgebra
             end
         end
     end
+end
 end

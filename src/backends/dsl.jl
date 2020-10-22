@@ -42,7 +42,7 @@ end
 
 
 """
-    function push!(dsl::DSLBackend, instruction::String)
+    push!(dsl::DSLBackend, instruction::String)
 
 Function to append a dsl command to the dsl script contained in a dsl backend.
 """
@@ -53,7 +53,7 @@ function push!(dsl::DSLBackend, instruction::String)
 end
 
 """
-    function save_tensor_data(backend::DSLBackend,
+    save_tensor_data(backend::DSLBackend,
                               node_label::Symbol,
                               tensor_label::Symbol,
                               tensor_data::Array{<:Number})
@@ -63,7 +63,6 @@ also appends a load command to the dsl script contained in the backend to load
 the saved tensor data as a tensor with the given node label.
 """
 function save_tensor_data(backend::DSLBackend,
-                          node_label::Symbol,
                           tensor_label::Symbol,
                           tensor_data::Array{<:Number})
 
@@ -75,12 +74,12 @@ function save_tensor_data(backend::DSLBackend,
             o_delete(file, tensor_label)
         end
         write(file, tensor_label, tensor_data)
-        push!(backend, "tensor $node_label $tensor_label")
+        push!(backend, "tensor $tensor_label $tensor_label")
     end
 end
 
 """
-    function load_tensor_data(backend::DSLBackend,
+    load_tensor_data(backend::DSLBackend,
                               tensor_label::Symbol)
 
 Function to load tensor data from backend storage (if present)
@@ -103,7 +102,7 @@ function load_tensor_data(backend::DSLBackend,
 end
 
 """
-    function contract_tensors(backend::DSLBackend,
+    contract_tensors(backend::DSLBackend,
                               A_label::Symbol, A_ncon_indices::Array{Int, 1},
                               B_label::Symbol, B_ncon_indices::Array{Int, 1},
                               C_label::Symbol)
@@ -128,7 +127,7 @@ function contract_tensors(backend::DSLBackend,
 end
 
 """
-    function save_output(backend::DSLBackend, node::Symbol, name::String)
+    save_output(backend::DSLBackend, node::Symbol, name::String)
 
 Function to save the result of fully contracting a network under the given
 name.
@@ -139,7 +138,7 @@ function save_output(backend::DSLBackend, node::Symbol, name::String="result")
 end
 
 """
-    function reshape_tensor(backend::DSLBackend,
+    reshape_tensor(backend::DSLBackend,
                             tensor::Symbol,
                             groups::Array{Array{Int, 1}, 1})
 
@@ -154,7 +153,7 @@ end
 
 
 """
-    function permute_tensor(nothing, tensor::Symbol, axes)
+    permute_tensor(nothing, tensor::Symbol, axes)
 
 Function to permute the axes of the given tensor
 """
@@ -166,7 +165,7 @@ function permute_tensor(backend::DSLBackend,
 end
 
 """
-    function decompose_tensor!(backend::DSLBackend,
+    decompose_tensor!(backend::DSLBackend,
                                tensor::Symbol,
                                left_indices::Array{Int, 1},
                                right_indices::Array{Int, 1};
@@ -196,7 +195,7 @@ function decompose_tensor!(backend::DSLBackend,
 end
 
 """
-    function delete_tensor!(backend::DSLBackend, tensor_label::Symbol)
+    delete_tensor!(backend::DSLBackend, tensor_label::Symbol)
 
 Mark tensor for deletion
 """
@@ -205,7 +204,7 @@ function delete_tensor!(backend::DSLBackend, tensor_label::Symbol)
 end
 
 """
-    function view_tensor!(backend::DSLBackend, view_node, node, bond_idx, bond_range)
+    view_tensor!(backend::DSLBackend, view_node, node, bond_idx, bond_range)
 
 Create a view on a tensor
 """

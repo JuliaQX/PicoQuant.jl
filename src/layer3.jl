@@ -30,7 +30,7 @@ struct Node
 end
 
 """
-    function Node(node_label::Symbol)
+    Node(node_label::Symbol)
 
 Outer constructor to create an instance of Node with the given node label and no
 index labels
@@ -85,7 +85,7 @@ struct TensorNetworkCircuit
 end
 
 """
-    function TensorNetworkCircuit(qubits::Int, backend::AbstractBackend=InteractiveBackend())
+    TensorNetworkCircuit(qubits::Int, backend::AbstractBackend=InteractiveBackend())
 
 Outer constructor to create an instance of TensorNetworkCircuit for an empty
 circuit with the given number of qubits.
@@ -138,7 +138,7 @@ end
 # *************************************************************************** #
 
 """
-    function new_label!(network::TensorNetworkCircuit, label_str)
+    new_label!(network::TensorNetworkCircuit, label_str)
 
 Function to create a unique symbol by incrememting relevant counter
 """
@@ -148,7 +148,7 @@ function new_label!(network::TensorNetworkCircuit, label_str)
 end
 
 """
-    function add_gate!(network::TensorNetworkCircuit,
+    add_gate!(network::TensorNetworkCircuit,
                        gate_data::Array{<:Number},
                        targetqubits::Array{Int, 1};
                        decompose::Bool=false)
@@ -192,7 +192,7 @@ function add_gate!(network::TensorNetworkCircuit,
             network.node_layers[node_label] = layer
 
             # Save the gate data to the executer
-            save_tensor_data(network, node_label, data_label, gates_data[i])
+            save_tensor_data(network, data_label, gates_data[i])
 
             input_index = input_indices[i]
             output_index = output_indices[i]
@@ -223,7 +223,7 @@ function add_gate!(network::TensorNetworkCircuit,
         network.node_layers[node_label] = layer
 
         # Save the gate data to the executer
-        save_tensor_data(network, node_label, data_label, gate_data)
+        save_tensor_data(network, data_label, gate_data)
 
         # remap nodes that edges are connected to
         for qubit in 1:length(input_indices)
@@ -249,7 +249,7 @@ function add_gate!(network::TensorNetworkCircuit,
 end
 
 """
-    function edges(network::TensorNetworkCircuit)
+    edges(network::TensorNetworkCircuit)
 
 Function to return edges from a given network
 """
@@ -258,7 +258,7 @@ function edges(network::TensorNetworkCircuit)
 end
 
 """
-    function add_input!(network::TensorNetworkCircuit, config::String)
+    add_input!(network::TensorNetworkCircuit, config::String)
 
 Function to add input nodes to a tensor network circuit with a given input
 configuration
@@ -283,7 +283,7 @@ function add_input!(network::TensorNetworkCircuit, config::String)
             network.node_layers[node_label] = 0
 
             # Save the gate data to the executer
-            save_tensor_data(network, node_label, data_label, node_data)
+            save_tensor_data(network, data_label, node_data)
 
             network.edges[input_index].src = node_label
         else
@@ -293,7 +293,7 @@ function add_input!(network::TensorNetworkCircuit, config::String)
 end
 
 """
-    function add_output!(network::TensorNetworkCircuit, config::String)
+    add_output!(network::TensorNetworkCircuit, config::String)
 
 Function to add output nodes to a tensor network circuit with a given output
 configuration
@@ -314,7 +314,7 @@ function add_output!(network::TensorNetworkCircuit, config::String)
             network.node_layers[node_label] = -1
 
             # Save the gate data to the executer
-            save_tensor_data(network, node_label, data_label, node_data)
+            save_tensor_data(network, data_label, node_data)
 
             network.edges[output_index].dst = node_label
         end
@@ -322,7 +322,7 @@ function add_output!(network::TensorNetworkCircuit, config::String)
 end
 
 """
-    function inneighbours(network::TensorNetworkCircuit,
+    inneighbours(network::TensorNetworkCircuit,
                           node_label::Symbol)
 
 Function to return the nodes which are connected to the given node with
@@ -342,7 +342,7 @@ function inneighbours(network::TensorNetworkCircuit,
 end
 
 """
-    function outneighbours(network::TensorNetworkCircuit,
+    outneighbours(network::TensorNetworkCircuit,
                            node_label::Symbol)
 
 Function to return the nodes which are connected to the given node with
@@ -362,7 +362,7 @@ function outneighbours(network::TensorNetworkCircuit,
 end
 
 """
-    function virtualneighbours(network::TensorNetworkCircuit,
+    virtualneighbours(network::TensorNetworkCircuit,
                            node_label::Symbol)
 
 Function to return the nodes which are connected to the given node with
@@ -384,7 +384,7 @@ function virtualneighbours(network::TensorNetworkCircuit,
 end
 
 """
-    function neighbours(network::TensorNetworkCircuit,
+    neighbours(network::TensorNetworkCircuit,
 
 Function to get all neighbouring nodes of the given node (incoming, outgoing and
 virtual)
@@ -397,7 +397,7 @@ function neighbours(network::TensorNetworkCircuit,
 end
 
 """
-    function inedges(network::TensorNetworkCircuit,
+    inedges(network::TensorNetworkCircuit,
                      node_label::Symbol)
 
 Function to get all incoming edges to the current node
@@ -409,7 +409,7 @@ function inedges(network::TensorNetworkCircuit,
 end
 
 """
-    function outedges(network::TensorNetworkCircuit,
+    outedges(network::TensorNetworkCircuit,
                       node_label::Symbol)
 
 Function to get all outgoing edges to the current node
@@ -421,7 +421,7 @@ function outedges(network::TensorNetworkCircuit,
 end
 
 """
-    function virtualedges(network::TensorNetworkCircuit,
+    virtualedges(network::TensorNetworkCircuit,
                           node_label::Symbol)
 
 Function to get all virtual edges connected to the current node
@@ -437,7 +437,7 @@ end
 # *************************************************************************** #
 
 """
-    function load_qasm_as_circuit_from_file(qasm_path::String)
+    load_qasm_as_circuit_from_file(qasm_path::String)
 
 Function to load qasm from the given path and return a qiskit circuit
 """
@@ -451,7 +451,7 @@ function load_qasm_as_circuit_from_file(qasm_path::String)
 end
 
 """
-    function load_qasm_as_circuit(qasm_str::String)
+    load_qasm_as_circuit(qasm_str::String)
 
 Function to load qasm from a given qasm string and return a qiskit circuit
 """
@@ -461,7 +461,7 @@ function load_qasm_as_circuit(qasm_str::String)
 end
 
 """
-    function transpile_circuit(circ,
+    transpile_circuit(circ,
                                couplings::Union{Nothing,
                                Array{Array{Int, 1}, 1})} = nothing))
 
@@ -504,7 +504,7 @@ function transpile_circuit(circ,
 end
 
 """
-    function convert_qiskit_circ_to_network(circ, backend::AbstractBackend=InteractiveBackend();
+    convert_qiskit_circ_to_network(circ, backend::AbstractBackend=InteractiveBackend();
                                             decompose::Bool=false,
                                             transpile::Bool=false)
 
@@ -548,7 +548,7 @@ end
 # *************************************************************************** #
 
 """
-    function to_dict(edge::Edge)
+    to_dict(edge::Edge)
 
 Function to convert an edge instance to a serialisable dictionary
 """
@@ -558,7 +558,7 @@ function to_dict(edge::Edge)
 end
 
 """
-    function edge_from_dict(dict::Dict)
+    edge_from_dict(dict::Dict)
 
 Function to create an edge instance from a dictionary
 """
@@ -570,7 +570,7 @@ function edge_from_dict(d::AbstractDict)
 end
 
 """
-    function to_dict(node::Node)
+    to_dict(node::Node)
 
 Function to serialise node instance to json format
 """
@@ -582,7 +582,7 @@ function to_dict(node::Node)
 end
 
 """
-    function node_from_dict(d::Dict)
+    node_from_dict(d::Dict)
 
 Function to create a node instance from a json string
 """
@@ -594,7 +594,7 @@ function node_from_dict(d::AbstractDict)
 end
 
 """
-    function to_dict(network::TensorNetworkCircuit)
+    to_dict(network::TensorNetworkCircuit)
 
 Convert a tensor network to a nested dictionary
 """
@@ -618,7 +618,7 @@ function to_dict(network::TensorNetworkCircuit)
 end
 
 """
-    function network_from_dict(dict::Dict{String, Any}, backend::AbstractBackend=InteractiveBackend())
+    network_from_dict(dict::Dict{String, Any}, backend::AbstractBackend=InteractiveBackend())
 
 Convert a dictionary to a tensor network with a given backend (default: InteractiveBackend)
 """
@@ -654,7 +654,7 @@ end
 
 
 """
-    function to_json(tng::TensorNetworkCircuit)
+    to_json(tng::TensorNetworkCircuit)
 
 Convert a tensor network to a json string
 """
@@ -668,7 +668,7 @@ function to_json(tng::TensorNetworkCircuit, indent::Int=0)
 end
 
 """
-    function network_from_json(json_str::String, backend::AbstractBackend=InteractiveBackend())
+    network_from_json(json_str::String, backend::AbstractBackend=InteractiveBackend())
 
 Convert a json string to a tensor network
 """
@@ -678,7 +678,7 @@ function network_from_json(json_str::String, backend::AbstractBackend=Interactiv
 end
 
 """
-    function decompose_gate!(gate_data::Array{<:Number, 4},
+    decompose_gate!(gate_data::Array{<:Number, 4},
                              threshold::AbstractFloat=1e-15)
 
 Decompose a tensor into two smaller tensors
@@ -751,7 +751,7 @@ GATE_TENSORS[:SWAP] = reshape([1 0 0 0; 0 0 1 0; 0 1 0 0; 0 0 0 1], 2, 2, 2, 2)
 # end
 
 """
-    function gate_tensor(gate::Symbol)
+    gate_tensor(gate::Symbol)
 
 Function to return tensors commonly used in quantum circuits. Input argument
 should be one of the following symbols:

@@ -1,4 +1,9 @@
+module VisualiseTests
+
+using Test
 import MetaGraphs
+
+using PicoQuant
 
 @testset "Visualisation tests" begin
     @testset "Test contracting a network" begin
@@ -25,4 +30,5 @@ import MetaGraphs
             MetaGraphs.ne(g) == 8
         end
     end
+end
 end

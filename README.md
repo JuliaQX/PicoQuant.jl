@@ -3,48 +3,50 @@
 [![](https://img.shields.io/badge/docs-latest-blue.svg)](https://ICHEC.github.io/PicoQuant.jl/dev)
 [![Build Status](https://travis-ci.org/ICHEC/PicoQuant.jl.svg?branch=master)](https://travis-ci.org/ICHEC/PicoQuant.jl.svg?branch=master)
 
-
-PicoQuant is an early prototype of a quantum circuit simulation framework being
-developed as part of the [QuantEx](https://git.ichec.ie/quantex/quantex) project.
-This is a [PRACE](https://prace-ri.eu/) funded project to develop quantum circuit
-simulation tools capable of running on the classical exa-scale compute clusters
-expected to be deployed in the coming years.
-
-This initial prototype is written in the spirit of writing one to
-throw away. The aim is to illustrate core project concepts and come face to face
-with design decisions and trade-offs that will be required in the project.
+PicoQuant is a quantum circuit simulation framework being developed as part of the [QuantEx](https://git.ichec.ie/quantex/quantex) project. This is a [PRACE](https://prace-ri.eu/) funded project to develop quantum circuit simulation tools capable of running on the classical exa-scale compute clusters expected to be deployed in the coming years. This package is a prototype to test out ideas and approaches that we hope to improve on in subsequent iterations.
 
 The best way to get started is to:
-- Follow the series of tutorial notebooks in the [notebooks folder](nb/)
 - Install the prototype locally by following the instructions below
+- Follow the series of tutorial notebooks in the [notebooks folder](nb/)
 - For more details on function interfaces read the [online docs](https://ICHEC.github.io/PicoQuant.jl/dev)
 - Get involved by posting an issue or submitting a pull request
 
-## Installation and setup
+## Install and example
 
-### For the impatient
-
-To install the version that is registered in the Julia repository, download and install
-Julia from the [Julialang website](https://julialang.org/downloads/) and then enter
-the following commands after starting Julia from CLI.
+PicoQuant can be installed from the Julia REPL with the following commands
 
 ```
 import Pkg
-Pkg.add("PicoQuant")
+Pkg.add("PicoQuant)
 ```
 
-Unittests can be run with
+Tests can be run with
 
 ```
 import Pkg
-Pkg.test("PicoQuant")
+Pkg.test()
 ```
 
-### More detailed instructions
+A simple script to use PicoQuant to simulate a 3 qubit GHZ circuit consists of the following
 
-To install the version directly from github follow these instructions.
+```
+using PicoQuant
 
-1. Download and install Julia from the [Julialang website](https://julialang.org/downloads/)
+tn = TensorNetworkCircuit(3)
+add_gate!(tn, gate_tensor(:H), [1])
+add_gate!(tn, gate_tensor(:CX), [1, 2])
+add_gate!(tn, gate_tensor(:CX), [2, 3])
+add_input!(tn, "000")
+full_wavefunction_contraction!(tn, "vector")
+output = load_tensor_data(tn, :result)
+```
+
+## Detailed installation instructions
+
+The version of PicoQuant that the above methods installs is the version that is registered with
+the Julia repository. These instructions show how to clone from the repository and install this version.
+
+1. If Julia is not already installed, download and install Julia from the [Julialang website](https://julialang.org/downloads/)
 2. Clone this repository using
 ```git clone https://github.com/ICHEC/PicoQuant.jl.git```
 3. Start the Julia REPL and navigate to the PicoQuant folder, activate and instantiate

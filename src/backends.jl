@@ -20,7 +20,7 @@ mutable struct Metrics
 end
 
 """
-    function record_compute_costs!(backend::AbstractBackend,
+    record_compute_costs!(backend::AbstractBackend,
                                    open_dims::Array{Int, 1},
                                    contracted_dims::Array{Int, 1})
 
@@ -41,7 +41,7 @@ function record_compute_costs!(backend::AbstractBackend,
 end
 
 """
-    function record_memory_costs!(backend::AbstractBackend,
+    record_memory_costs!(backend::AbstractBackend,
                                   tensor_memory::Int)
 
 Function to add the space cost of a tensor to the metrics contained in

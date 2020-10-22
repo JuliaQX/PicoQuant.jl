@@ -1,4 +1,10 @@
+module Layer3Tests
+
+using Test
 using LinearAlgebra
+
+using PicoQuant
+include("test_utils.jl")
 
 @testset "Layer 3 tests" begin
     @testset "Test loading and conversion of qasm" begin
@@ -116,4 +122,5 @@ using LinearAlgebra
         add_output!(tng, "000")
         @test length(tng.nodes) == 6
     end
+end
 end
