@@ -1,4 +1,9 @@
-using PyCall
+using Logging
+try
+    using PyCall
+catch
+    @warn("PyCall not available")
+end
 using Random
 
 export create_qft_circuit, create_simple_preparation_circuit

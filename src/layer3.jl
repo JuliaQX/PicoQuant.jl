@@ -1,4 +1,9 @@
-using PyCall
+using Logging
+try
+    using PyCall
+catch
+    @warn("PyCall not present")
+end
 using JSON
 using DataStructures
 using LinearAlgebra

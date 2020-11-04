@@ -3,8 +3,13 @@ import LightGraphs
 
 using PicoQuant
 using Statistics
-using GraphPlot
-using Colors
+using Logging
+try
+    using GraphPlot
+    using Colors
+catch
+    @warn("GraphPlot and/or Colors not present")
+end
 
 export plot
 export plot_contraction_tree, create_contraction_tree

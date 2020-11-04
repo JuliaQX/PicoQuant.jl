@@ -1,5 +1,5 @@
 using TensorOperations
-using EllipsisNotation
+# using EllipsisNotation
 using DataStructures
 import Base: size, length, getindex
 
