@@ -24,7 +24,7 @@ struct Node
     # the indices that the node contains.
     indices::Array{Symbol, 1}
     # tensor dimensions.
-    dims::Array{<:Integer, 1}
+    dims::Array{Int, 1}
     # The symbol used to identify the tensor associated with this node.
     data_label::Symbol
 end
@@ -36,18 +36,18 @@ Outer constructor to create an instance of Node with the given node label and no
 index labels
 """
 function Node(data_label::Symbol)
-    Node(Array{Symbol, 1}(), Array{Int64, 1}(), data_label)
+    Node(Array{Symbol, 1}(), Array{Int, 1}(), data_label)
 end
 
 """Struct to represent an edge"""
 mutable struct Edge
     src::Union{Symbol, Nothing}
     dst::Union{Symbol, Nothing}
-    qubit::Union{Int64, Nothing}
+    qubit::Union{Int, Nothing}
     virtual::Bool
     Edge(a::Union{Symbol, Nothing},
          b::Union{Symbol, Nothing},
-         qubit::Union{Integer, Nothing},
+         qubit::Union{Int, Nothing},
          virtual::Bool=false) = new(a, b, qubit, virtual)
     Edge() = new(nothing, nothing, nothing, false)
 end
@@ -58,7 +58,7 @@ struct TensorNetworkCircuit
     #FIXME: This should be parameterised, along with the TensorNetworkCircuit
     backend::AbstractBackend
 
-    number_qubits::Integer
+    number_qubits::Int
 
     # Reference to indices connecting to input qubits
     input_qubits::Array{Symbol, 1}
@@ -74,14 +74,14 @@ struct TensorNetworkCircuit
 
     # Array with indices of quantum register positions corresponding to
     # each classical register position
-    qubit_ordering::Array{Integer, 1}
+    qubit_ordering::Array{Int, 1}
 
     # implementation details, not shared outside module
     # counters for assigning unique symbol names to nodes and indices
-    counters::Dict{String, Integer}
+    counters::Dict{String, Int}
 
     # maps nodes to layer numbers
-    node_layers::Dict{Symbol, Integer}
+    node_layers::Dict{Symbol, Int}
 end
 
 """
@@ -90,7 +90,7 @@ end
 Outer constructor to create an instance of TensorNetworkCircuit for an empty
 circuit with the given number of qubits.
 """
-function TensorNetworkCircuit(qubits::Integer, backend::AbstractBackend=InteractiveBackend())
+function TensorNetworkCircuit(qubits::Int, backend::AbstractBackend=InteractiveBackend())
     # Create labels for edges of the network connecting input to output qubits
     index_labels = [Symbol("index_", i) for i in 1:qubits]
 
@@ -105,12 +105,12 @@ function TensorNetworkCircuit(qubits::Integer, backend::AbstractBackend=Interact
 
     nodes = OrderedDict{Symbol, Node}()
 
-    counters = Dict{String, Integer}()
+    counters = Dict{String, Int}()
     counters["index"] = qubits
     counters["node"] = 0
     counters["layer"] = 0
 
-    node_layers = Dict{Symbol, Int64}()
+    node_layers = Dict{Symbol, Int}()
 
     # Create the tensor network
     TensorNetworkCircuit(backend, qubits, input_indices, output_indices, nodes,
@@ -125,6 +125,8 @@ for func in [:save_tensor_data , :load_tensor_data, :contract_tensors, :save_out
              :reshape_tensor, :permute_tensor, :decompose_tensor!, :delete_tensor!,
              :view_tensor!]
     @eval begin
+        #TODO: Is this iffy since the generated functions will expect an AbstractBackend
+        #      rather than a parameterised backend
         function $func(network::TensorNetworkCircuit, args...; kwargs...)
             $func(network.backend, args...; kwargs...)
         end
@@ -148,14 +150,14 @@ end
 """
     function add_gate!(network::TensorNetworkCircuit,
                        gate_data::Array{<:Number},
-                       targetqubits::Array{Integer, 1};
+                       targetqubits::Array{Int, 1};
                        decompose::Bool=false)
 
 Add a node to the tensor network for the given gate acting on the given quibits
 """
 function add_gate!(network::TensorNetworkCircuit,
                    gate_data::Array{<:Number},
-                   target_qubits::Array{<:Integer,1};
+                   target_qubits::Array{Int,1};
                    decompose::Bool=false)
 
     n = length(target_qubits)
@@ -461,13 +463,13 @@ end
 """
     function transpile_circuit(circ,
                                couplings::Union{Nothing,
-                               Array{<:Array{<:Integer, 1}, 1})} = nothing))
+                               Array{Array{Int, 1}, 1})} = nothing))
 
 Transpile circuit so only neighbouring qubits have gates applied to them
 """
 function transpile_circuit(circ,
                            couplings::Union{Nothing,
-                           Array{<: Array{<:Integer, 1}, 1}} = nothing)
+                           Array{Array{Int, 1}, 1}} = nothing)
     n_qubits = convert(Int, circ.n_qubits)
     transpiler = pyimport("qiskit.transpiler")
     passes = pyimport("qiskit.transpiler.passes")
@@ -656,7 +658,7 @@ end
 
 Convert a tensor network to a json string
 """
-function to_json(tng::TensorNetworkCircuit, indent::Integer=0)
+function to_json(tng::TensorNetworkCircuit, indent::Int=0)
     dict = to_dict(tng)
     if indent == 0
         return JSON.json(dict)

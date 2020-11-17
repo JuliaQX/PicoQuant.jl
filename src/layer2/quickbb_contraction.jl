@@ -16,7 +16,7 @@ Use a contraction plan found by the QuickBB method to contract the given
 TensorNetworkCircuit.
 """
 function QuickBB_contraction!(tn::TensorNetworkCircuit,
-                              output_shape::Union{String, Array{<:Integer, 1}}="")
+                              output_shape::Union{String, Array{Int, 1}}="")
     contraction_plan = QuickBB_contraction_plan(tn)
     contraction_plan = Array{Symbol, 1}(contraction_plan)
     contract_network!(tn, contraction_plan, output_shape)
@@ -194,12 +194,12 @@ end
 
 
 """
-    function cliqueness(G::AbstractGraph, v::Integer)
+    function cliqueness(G::AbstractGraph, v::)
 
 Return the number of edges that need to be added to G in order to make the
 neighborhood of v simplicial.
 """
-function cliqueness(G::AbstractGraph, v::Integer)
+function cliqueness(G::AbstractGraph, v::Int)
     neighborhood = lg.all_neighbors(G, v)
     count = 0
     for (i, vi) in enumerate(neighborhood)
@@ -215,11 +215,11 @@ end
 
 
 """
-    function eliminate!(G::AbstractGraph, v::Integer)
+    function eliminate!(G::AbstractGraph, v::Int)
 
 Connect all the neighbors of v together before removing v from G.
 """
-function eliminate!(G::AbstractGraph, v::Integer)
+function eliminate!(G::AbstractGraph, v::Int)
     neighborhood_v = lg.all_neighbors(G, v)
     for (i, vi) in enumerate(neighborhood_v)
         for ui in neighborhood_v[i+1:end]
@@ -232,12 +232,12 @@ end
 
 
 """
-    function contract_vertices!(G::AbstractGraph, u::Integer, v::Integer)
+    function contract_vertices!(G::AbstractGraph, u::Int, v::Int)
 
 Replaces vertices u and v with a new vertex and connects it all the neighbors
 of u and v.
 """
-function contract_vertices!(G::AbstractGraph, u::Integer, v::Integer)
+function contract_vertices!(G::AbstractGraph, u::Int, v::Int)
     # Add a new vertex to replace u and v.
     lg.add_vertex!(G)
 

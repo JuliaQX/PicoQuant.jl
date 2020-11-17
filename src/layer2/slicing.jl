@@ -4,14 +4,14 @@ export replace_with_view!, slice_tensor_network
 
 """
     function multi_index_partition(dims::Tuple{Vararg{Int64, N}},
-                                   number_partitions::Integer,
-                                   partition::Integer) where N
+                                   number_partitions::Int,
+                                   partition::Int) where N
 
 Find the starting and finishing index for the given dimension
 """
 function multi_index_partition(dims::Tuple{Vararg{Int64, N}},
-                               number_partitions::Integer,
-                               partition::Integer) where N
+                               number_partitions::Int,
+                               partition::Int) where N
     total_dim, num_dims = 1, 1
     while num_dims < length(dims)
         total_dim *=dims[num_dims]
@@ -60,14 +60,14 @@ end
     function replace_with_view!(network::TensorNetworkCircuit,
                                 node_label::Symbol,
                                 bond_label::Symbol,
-                                bond_range::UnitRange{<:Integer})
+                                bond_range::UnitRange{Int})
 
 Replace the node in the network with a view on the network along the provided bond ranges
 """
 function replace_with_view!(network::TensorNetworkCircuit,
                             node_label::Symbol,
                             bond_label::Symbol,
-                            bond_range::UnitRange{<:Integer})
+                            bond_range::UnitRange{Int})
     # find the index of the node to create view on
     node = network.nodes[node_label]
     bond_idx = findfirst(x -> x == bond_label, node.indices)

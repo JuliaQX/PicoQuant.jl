@@ -104,16 +104,16 @@ end
 
 """
     function contract_tensors(backend::DSLBackend,
-                              A_label::Symbol, A_ncon_indices::Array{<:Integer, 1},
-                              B_label::Symbol, B_ncon_indices::Array{<:Integer, 1},
+                              A_label::Symbol, A_ncon_indices::Array{Int, 1},
+                              B_label::Symbol, B_ncon_indices::Array{Int, 1},
                               C_label::Symbol)
 
 Function to add dsl commands to a dsl backend's script that contract two tensors
 A and B to create a third tensor C.
 """
 function contract_tensors(backend::DSLBackend,
-                          A_label::Symbol, A_ncon_indices::Array{<:Integer, 1},
-                          B_label::Symbol, B_ncon_indices::Array{<:Integer, 1},
+                          A_label::Symbol, A_ncon_indices::Array{Int, 1},
+                          B_label::Symbol, B_ncon_indices::Array{Int, 1},
                           C_label::Symbol)
 
     # Create and save the dsl commands for contracting A and B.
@@ -141,13 +141,13 @@ end
 """
     function reshape_tensor(backend::DSLBackend,
                             tensor::Symbol,
-                            groups::Array{Array{<:Integer, 1}, 1})
+                            groups::Array{Array{Int, 1}, 1})
 
 Function to add dsl command that reshapes a given tensor.
 """
 function reshape_tensor(backend::DSLBackend,
                         tensor::Symbol,
-                        groups::Array{<:Array{<:Integer, 1}, 1})
+                        groups::Array{Array{Int, 1}, 1})
     command = "reshape $tensor " * join([join(y, ",") for y in groups], ";")
     push!(backend, command)
 end
@@ -160,7 +160,7 @@ Function to permute the axes of the given tensor
 """
 function permute_tensor(backend::DSLBackend,
                         tensor::Symbol,
-                        axes::Array{<:Integer, 1})
+                        axes::Array{Int, 1})
     command = "permute $tensor " * join(axes, ",")
     push!(backend, command)
 end
@@ -171,7 +171,7 @@ end
                                left_indices::Array{Int, 1},
                                right_indices::Array{Int, 1};
                                threshold::AbstractFloat=1e-13,
-                               max_rank::Integer=0,
+                               max_rank::Int=0,
                                left_label::Symbol,
                                right_label::Symbol)
 
@@ -184,7 +184,7 @@ function decompose_tensor!(backend::DSLBackend,
                            left_indices::Array{Int, 1},
                            right_indices::Array{Int, 1};
                            threshold::AbstractFloat=1e-13,
-                           max_rank::Integer=0,
+                           max_rank::Int=0,
                            left_label::Symbol,
                            right_label::Symbol)
     cmd_str = "decompose $tensor "

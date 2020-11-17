@@ -45,12 +45,12 @@ function bgreedy(network::TensorNetworkCircuit, α::Real, τ::Real)
 end
 
 """
-    function bgreedy(network::TensorNetworkCircuit, α::Real, τ::Real, N::Integer)
+    function bgreedy(network::TensorNetworkCircuit, α::Real, τ::Real, N::Int)
 
 This function samples N contraction plans by calling the bgreedy function
 N times and returns the best contraction plan found.
 """
-function bgreedy(network::TensorNetworkCircuit, α::Real, τ::Real, N::Integer)
+function bgreedy(network::TensorNetworkCircuit, α::Real, τ::Real, N::Int)
     best_plan = []
     best_time_cost = Inf
 
@@ -109,7 +109,7 @@ function get_random_pair(tensors::OrderedDict{Symbol, Node}, α::Real, τ::Real)
     tensor_pairs = Array{Array{Symbol, 1}, 1}(undef, N_pairs)
     energy = Array{Real, 1}(undef, N_pairs)
     C_indices = Array{Array{Symbol, 1}, 1}(undef, N_pairs)
-    C_dims = Array{Array{Integer, 1}, 1}(undef, N_pairs)
+    C_dims = Array{Array{Int, 1}, 1}(undef, N_pairs)
     costs = Array{Array{Real, 1}, 1}(undef, N_pairs)
 
     # Loop over all possible pairings of tensors and compute heuristic cost
@@ -132,14 +132,14 @@ end
 
 """
     function bgreedy_contraction!(network::TensorNetworkCircuit,
-                                  α::Real, τ::Real, N::Integer)
+                                  α::Real, τ::Real, N::Int)
 
 Function to contract a TensorNetworkCircuit with a contraction plan found by
 the bgreedy method with the given parameters.
 """
 function bgreedy_contraction!(network::TensorNetworkCircuit,
-                              α::Real=1, τ::Real=1, N::Integer=10,
-                              output_shape::Union{String, Array{<:Integer, 1}}="")
+                              α::Real=1, τ::Real=1, N::Int=10,
+                              output_shape::Union{String, Array{Int, 1}}="")
     contraction_plan, cost = bgreedy(network, α, τ, N)
     contract_network!(network, contraction_plan, output_shape)
 end

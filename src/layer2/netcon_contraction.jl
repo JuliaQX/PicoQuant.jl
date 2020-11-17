@@ -53,7 +53,7 @@ function create_netcon_input(network::TensorNetworkCircuit)
     num_tensors = length(network.nodes)
 
     tensor_indices = Array{Array{Symbol, 1}, 1}(undef, num_tensors)
-    tensor_dims = Array{Array{<:Integer, 1}, 1}(undef, num_tensors)
+    tensor_dims = Array{Array{Int, 1}, 1}(undef, num_tensors)
     tensor_labels = Array{Symbol, 1}(undef, num_tensors)
 
     for (i, node) in enumerate(values(network.nodes))
@@ -74,8 +74,8 @@ function create_netcon_input(network::TensorNetworkCircuit)
 end
 
 """
-    function convert_tree_to_plan(tree::Union{Array{<:Any, 1}, Integer},
-                                  last_node_label::Integer,
+    function convert_tree_to_plan(tree::Union{Array{<:Any, 1}, Int},
+                                  last_node_label::Int,
                                   tensor_labels::Array{Symbol, 1},
                                   plan::Array{Array{Symbol, 1}, 1})
 
@@ -94,8 +94,8 @@ tensor_labels - An array of all the node labels for the nodes in a tensor
 converted_plan - Initially, this argument should be an empty array. It will hold
                  the sequence of pairs when the function completes.
 """
-function convert_tree_to_plan(tree::Union{Array{<:Any, 1}, Integer},
-                              last_node_label::Integer,
+function convert_tree_to_plan(tree::Union{Array{<:Any, 1}, Int},
+                              last_node_label::Int,
                               tensor_labels::Array{Symbol, 1},
                               plan::Array{Array{Symbol, 1}, 1}
                                     =Array{Array{Symbol, 1}, 1}())
@@ -145,13 +145,13 @@ end
 
 """
     function netcon_contraction!(network::TensorNetworkCircuit,
-                            output_shape::Union{String, Array{<:Integer, 1}}="")
+                            output_shape::Union{String, Array{Int, 1}}="")
 
 Function to contraction a network according to the optimal contraction plan
 found by the netcon method.
 """
 function netcon_contraction!(network::TensorNetworkCircuit,
-                             output_shape::Union{String, Array{<:Integer, 1}}="")
+                             output_shape::Union{String, Array{Int, 1}}="")
 
     if length(network.nodes) > 36
         error("The number of nodes in the network exceed the maximum for netcon")

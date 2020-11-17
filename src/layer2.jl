@@ -69,7 +69,7 @@ end
 Function to contract the network in order starting from input nodes
 """
 function inorder_contraction!(network::TensorNetworkCircuit)
-    layer_nodes = Dict{Int64, Array{Symbol,1}}()
+    layer_nodes = Dict{Int, Array{Symbol,1}}()
     for (k, v) in pairs(network.node_layers)
         if haskey(layer_nodes, v)
             push!(layer_nodes[v], k)
@@ -114,14 +114,14 @@ end
 
 """
     function full_wavefunction_contraction!(network::TensorNetworkCircuit,
-                                            output_shape::Union{String, Array{<:Integer, 1}}="")
+                                            output_shape::Union{String, Array{Int, 1}}="")
 
 Function to contract a network by first contracting input nodes together, to
 get the wavefunction representing the initial state, and then contracting
 gates into the wavefunction in the order they appear in the circuit.
 """
 function full_wavefunction_contraction!(network::TensorNetworkCircuit,
-                                        output_shape::Union{String, Array{<:Integer, 1}}="")
+                                        output_shape::Union{String, Array{Int, 1}}="")
 
     # Get the input nodes of the circuit
     input_nodes = [network.edges[edge].src for edge in network.input_qubits]
@@ -137,7 +137,7 @@ function full_wavefunction_contraction!(network::TensorNetworkCircuit,
         wf = contract_pair!(network, wf, wfi)
     end
 
-    layer_nodes = Dict{Int64, Array{Symbol,1}}()
+    layer_nodes = Dict{Int, Array{Symbol,1}}()
     for (k, v) in pairs(network.node_layers)
         if haskey(layer_nodes, v)
             push!(layer_nodes[v], k)
@@ -233,14 +233,14 @@ end
 """
     function contract_network!(network::TensorNetworkCircuit,
                                plan::Array{Symbol, 1},
-                               output_shape::Union{String, Array{<:Array{<:Integer, 1}, 1})
+                               output_shape::Union{String, Array{Int, 1}})
 
 Function to contract the given network according to the given contraction plan.
 The resulting tensor will be given the shape described by 'output_shape'.
 """
 function contract_network!(network::TensorNetworkCircuit,
                            plan::Array{Symbol, 1},
-                           output_shape::Union{String, Array{<:Integer, 1}}="")
+                           output_shape::Union{String, Array{Int, 1}}="")
 
     # Loop through the plan and contract each edge in sequence
     for edge in plan
@@ -277,14 +277,14 @@ end
 """
     function contract_network!(network::TensorNetworkCircuit,
                                plan::Array{Array{Symbol, 1}, 1},
-                               output_shape::Union{String, Array{<:Array{<:Integer, 1}, 1})
+                               output_shape::Union{String, Array{Int, 1}, 1})
 
 Function to contract the given network according to the given contraction plan.
 The resulting tensor will be given the shape described by 'output_shape'.
 """
 function contract_network!(network::TensorNetworkCircuit,
                            plan::Array{Array{Symbol, 1}, 1},
-                           output_shape::Union{String, Array{<:Integer, 1}}="")
+                           output_shape::Union{String, Array{Int, 1}}="")
 
     # Loop through the plan and contract each tensor pair in sequence
     for (A, B) in plan
@@ -403,7 +403,7 @@ end
     function compress_tensor_chain!(network::TensorNetworkCircuit,
                                     nodes::Array{Symbol, 1};
                                     threshold::AbstractFloat=1e-13,
-                                    max_rank::Integer=0)
+                                    max_rank::Int=0)
 
 Compress a chain of tensors by given by the array of symbols. This is achieved
 by peforming forward and backward sweeps where of compression operations on each
@@ -414,7 +414,7 @@ beyond the max_rank (max_rank zero corresponds to infinite rank)
 function compress_tensor_chain!(network::TensorNetworkCircuit,
                                 nodes::Array{Symbol, 1};
                                 threshold::AbstractFloat=1e-13,
-                                max_rank::Integer=0)
+                                max_rank::Int=0)
 
     # TODO: required that tensors in the chain only have virtual bonds between
     # consecutive tensors. Add a check that enforces this
@@ -436,7 +436,7 @@ end
                             node_1::Symbol,
                             node_2::Symbol;
                             threshold::AbstractFloat=1e-13,
-                            max_rank::Integer=0)
+                            max_rank::Int=0)
 
 Compress the virtual bond between the given nodes
 """
@@ -444,7 +444,7 @@ function compress_bond!(network::TensorNetworkCircuit,
                         node_1::Symbol,
                         node_2::Symbol;
                         threshold::AbstractFloat=1e-13,
-                        max_rank::Integer=0)
+                        max_rank::Int=0)
 
     left_node = network.nodes[node_1]
     right_node = network.nodes[node_2]
@@ -469,7 +469,7 @@ end
                                left_indices::Array{Symbol, 1},
                                right_indices::Array{Symbol, 1};
                                threshold::AbstractFloat=1e-15,
-                               max_rank::Integer=0,
+                               max_rank::Int=0,
                                left_label::Union{Nothing, Symbol}=nothing,
                                right_label::Union{Nothing, Symbol}=nothing)
 
@@ -480,7 +480,7 @@ function decompose_tensor!(network::TensorNetworkCircuit,
                            left_indices::Array{Symbol, 1},
                            right_indices::Array{Symbol, 1};
                            threshold::AbstractFloat=1e-14,
-                           max_rank::Integer=0,
+                           max_rank::Int=0,
                            left_label::Union{Nothing, Symbol}=nothing,
                            right_label::Union{Nothing, Symbol}=nothing)
 
@@ -552,16 +552,16 @@ end
 
 """
     function contract_mps_tensor_network_circuit(network::TensorNetworkCircuit;
-                                                 max_bond::Integer=2,
+                                                 max_bond::Int=2,
                                                  threshold::AbstractFloat=1e-13,
-                                                 max_rank::Integer=0)
+                                                 max_rank::Int=0)
 
 Contract a tensor network representing a quantum circuit using MPS techniques
 """
 function contract_mps_tensor_network_circuit!(network::TensorNetworkCircuit;
-                                              max_bond::Integer=2,
+                                              max_bond::Int=2,
                                               threshold::AbstractFloat=1e-13,
-                                              max_rank::Integer=0)
+                                              max_rank::Int=0)
     # identify the MPS nodes as the input nodes
     mps_nodes = [network.edges[x].src for x in network.input_qubits]
     @assert all([x !== nothing for x in mps_nodes]) "Input qubit values must be set"
@@ -571,7 +571,7 @@ function contract_mps_tensor_network_circuit!(network::TensorNetworkCircuit;
     mps_nodes = [network.edges[x].src for x in network.input_qubits]
     @assert all([x !== nothing for x in mps_nodes]) "Input qubit values must be set"
 
-    layer_nodes = Dict{Int64, Array{Symbol,1}}()
+    layer_nodes = Dict{Int, Array{Symbol,1}}()
     for (k, v) in pairs(network.node_layers)
         if haskey(layer_nodes, v)
             push!(layer_nodes[v], k)
@@ -589,7 +589,7 @@ function contract_mps_tensor_network_circuit!(network::TensorNetworkCircuit;
     for gate_layer in gate_layers
         nodes = layer_nodes[gate_layer]
 
-        updated_indices = Array{Int64, 1}(undef, length(nodes))
+        updated_indices = Array{Int, 1}(undef, length(nodes))
         for (i, node) in enumerate(nodes)
             # find the input node to connect to it
             input_node = inneighbours(network, node)[1]

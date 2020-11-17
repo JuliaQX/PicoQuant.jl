@@ -41,7 +41,7 @@ end
 Uses picoquant to calculate statevector resulting from given circuit
 """
 function get_statevector_using_picoquant(circ; big_endian=false)
-    tn = convert_qiskit_circ_to_network(circ, InteractiveBackend(), decompose=false, transpile=false)
+    tn = convert_qiskit_circ_to_network(circ, InteractiveBackend{ComplexF64}(), decompose=false, transpile=false)
     qubits = circ.n_qubits
     add_input!(tn, "0"^qubits)
     full_wavefunction_contraction!(tn)

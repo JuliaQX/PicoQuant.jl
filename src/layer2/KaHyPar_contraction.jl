@@ -247,8 +247,8 @@ function network_of_partitions(network::TensorNetworkCircuit,
 end
 
 """
-    function convert_tree_to_plan(tree::Union{Array{<:Any, 1}, Integer},
-                                  last_node_label::Integer,
+    function convert_tree_to_plan(tree::Union{Array{<:Any, 1}, Int},
+                                  last_node_label::Int,
                                   tensor_labels::Array{Symbol, 1},
                                   plan::Array{Array{Symbol, 1}, 1})
 
@@ -265,7 +265,7 @@ converted_plan - Initially, this argument should be an empty array. It will hold
                  the sequence of pairs when the function completes.
 """
 function convert_tree_to_plan(tree::Union{Array{<:Any, 1}, Symbol},
-                              last_node_label::Integer,
+                              last_node_label::Int,
                               plan::Array{Array{Symbol, 1}, 1}
                                     =Array{Array{Symbol, 1}, 1}())
 
@@ -300,7 +300,7 @@ using the KaHyPar method.
 """
 function KaHyPar_contraction!(network::TensorNetworkCircuit,
                               k::Int=2, ϵ::Real=1, V::Int=7,
-                              output_shape::Union{String, Array{<:Integer, 1}}="")
+                              output_shape::Union{String, Array{Int, 1}}="")
     contraction_tree = KaHyPar_contraction_plan(network, k, ϵ, V)
     contraction_plan = convert_tree_to_plan(contraction_tree,
                                             network.counters["node"])
