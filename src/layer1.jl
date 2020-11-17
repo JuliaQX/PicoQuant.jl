@@ -80,8 +80,11 @@ according to the ncon indices given and return the result.
 """
 function contract_tensors(tensors_to_contract::Tuple{Array{T}, Array{T}},
                           tensor_indices::Tuple{Array{Int,1},Array{Int,1}}) where {T <: Number}
-    tensorcontract(tensors_to_contract[1], Tuple(tensor_indices[1]),
-                   tensors_to_contract[2], Tuple(tensor_indices[2]))
+    a_idx = Tuple(tensor_indices[1]);
+    b_idx = Tuple(tensor_indices[2]);
+    tensorcontract(tensors_to_contract[1], a_idx,
+                   tensors_to_contract[2], b_idx,
+                   Tuple(symdiff(a_idx,b_idx)))
 end
 
 """
