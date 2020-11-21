@@ -298,7 +298,7 @@ using LinearAlgebra
             end
         end
 
-        @testset "Test tensor network contraction with MPS methods for $backend_name" begin
+        @testset "Test tensor network contraction with MPS, full vector for $backend_name" begin
             @test begin
                 try
                     n = 5
@@ -314,6 +314,27 @@ using LinearAlgebra
                     ref_output = zeros(ComplexF64, 2^n)
                     ref_output[[1, end]] .= 1/sqrt(2)
                     load_tensor_data(tn, :result) ≈ ref_output
+                finally
+                    backend_funcs[:finalise]()
+                end
+            end
+        end
+
+        @testset "Test tensor network contraction with MPS, select amplitudes for $backend_name" begin
+            @test begin
+                try
+                    n = 5
+                    circ = create_ghz_preparation_circuit(n)
+                    tn = convert_qiskit_circ_to_network(circ,
+                                                        backend_funcs[:init](),
+                                                        decompose=true,
+                                                        transpile=true)
+                    add_input!(tn, "0"^n)
+                    mps_nodes = contract_mps_tensor_network_circuit!(tn)
+                    backend_funcs[:execute]()
+                    mps_state = MPSState(tn, mps_nodes)
+                    mps_state["11111"] ≈ mps_state["00000"] ≈ 1/sqrt(2)
+                    mps_state["10101"] ≈ 0
                 finally
                     backend_funcs[:finalise]()
                 end

@@ -714,7 +714,7 @@ end
 # *************************************************************************** #
 
 # A dictionary of commonly used quantum gates.
-GATE_TENSORS = Dict{Symbol, Any}()
+const GATE_TENSORS = Dict{Symbol, Array{ComplexF64}}()
 
 GATE_TENSORS[:I] = [1 0; 0 1]
 GATE_TENSORS[:X] = [0 1; 1 0]
@@ -730,25 +730,25 @@ GATE_TENSORS[:CZ] = reshape([1 0 0 0; 0 1 0 0; 0 0 1 0; 0 0 0 -1], 2, 2, 2, 2)
 GATE_TENSORS[:SWAP] = reshape([1 0 0 0; 0 0 1 0; 0 1 0 0; 0 0 0 1], 2, 2, 2, 2)
 
 # Toffoli gate
-TOFF = zeros(8,8); TOFF[7,8] = 1; TOFF[8,7] = 1
-for i = 1:6
-    TOFF[i,i] = 1
-end
-GATE_TENSORS[:TOFF] = reshape(TOFF, 2, 2, 2, 2, 2, 2)
+# TOFF = zeros(8,8); TOFF[7,8] = 1; TOFF[8,7] = 1
+# for i = 1:6
+#     TOFF[i,i] = 1
+# end
+# GATE_TENSORS[:TOFF] = reshape(TOFF, 2, 2, 2, 2, 2, 2)
 
-# IBM gates
-GATE_TENSORS[:U3] = function (θ::Real,ϕ::Real,λ::Real)
-    [cos(θ/2) -exp(1im*λ)*sin(θ/2);
-     exp(1im*ϕ)*sin(θ/2) exp(1im*(ϕ+λ))*cos(θ/2)]
-end
+# # IBM gates
+# GATE_TENSORS[:U3] = function (θ::Real,ϕ::Real,λ::Real)
+#     [cos(θ/2) -exp(1im*λ)*sin(θ/2);
+#      exp(1im*ϕ)*sin(θ/2) exp(1im*(ϕ+λ))*cos(θ/2)]
+# end
 
-GATE_TENSORS[:U2] = function (ϕ::Real, λ::Real)
-    GATE_TENSORS[:U3](0, ϕ, λ)
-end
+# GATE_TENSORS[:U2] = function (ϕ::Real, λ::Real)
+#     GATE_TENSORS[:U3](0, ϕ, λ)
+# end
 
-GATE_TENSORS[:U1] = function (λ::Real)
-    GATE_TENSORS[:U3](0, 0, λ)
-end
+# GATE_TENSORS[:U1] = function (λ::Real)
+#     GATE_TENSORS[:U3](0, 0, λ)
+# end
 
 """
     function gate_tensor(gate::Symbol)

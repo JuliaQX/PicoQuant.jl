@@ -153,7 +153,12 @@ function decompose_tensor(tensor::Array{T},
     A = reshape(A, Tuple([prod(left_dims), prod(right_dims)]))
 
     # Use SVD here but QR could also be used
-    F = svd(A)
+    F = try
+        svd(A)
+    catch
+        # if divide and conquer approach fails fallback to QRIteration approach
+        svd(A, alg=LinearAlgebra.QRIteration)
+    end
 
     # find number of singular values above the threshold
     s_norm = sqrt(sum(F.S .^ 2))
@@ -166,7 +171,7 @@ function decompose_tensor(tensor::Array{T},
     # assume that singular values and basis of U and V matrices are sorted
     # in descending order of singular value
     B = reshape(F.U[:, 1:chi] * Diagonal(S_sqrt), Tuple(vcat(left_dims, [chi,])))
-    C = reshape(Diagonal(S_sqrt) * F.Vt[1:chi, :], Tuple(vcat([chi,], right_dims)))
+    C = reshape(Diagonal(S_sqrt) * Adjoint(F.V[:, 1:chi]), Tuple(vcat([chi,], right_dims)))
 
     B, C, chi
 end

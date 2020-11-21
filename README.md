@@ -22,23 +22,44 @@ The best way to get started is to:
 
 ## Installation and setup
 
-The prototype comes in the form of a Julia package which is targeted to versions
-of Julialang from v1 on. Julialang binaries and sources can be downloaded from
-[https://julialang.org/](https://julialang.org/).
+### For the impatient
 
-Once installed, from the Julia REPL prompt navigate to the PicoQuant folder
-and activate the environment, instantiate it and then build PicoQuant.
+To install the version that is registered in the Julia repository, download and install
+Julia from the [Julialang website](https://julialang.org/downloads/) and then enter
+the following commands after starting Julia from CLI.
+
+```
+import Pkg
+Pkg.add("PicoQuant")
+```
+
+Unittests can be run with
+
+```
+import Pkg
+Pkg.test("PicoQuant")
+```
+
+### More detailed instructions
+
+To install the version directly from github follow these instructions.
+
+1. Download and install Julia from the [Julialang website](https://julialang.org/downloads/)
+2. Clone this repository using
+```git clone https://github.com/ICHEC/PicoQuant.jl.git```
+3. Start the Julia REPL and navigate to the PicoQuant folder, activate and instantiate
+the environment and then build PicoQuant.
+```
+import Pkg
+Pkg.activate(".")
+Pkg.instantiate()
+Pkg.build("PicoQuant")
+```
 This should install dependencies specified in the `Project.toml` file
 and carry out any package specific build tasks (detailed in `deps/build.jl` file).
 Currently PicoQuant uses some functionality from [qiskit](https://qiskit.org). This is
  installed in the python environment used by [PyCall](https://github.com/JuliaPy/PyCall.jl)
 during the build. See below for details about using different python environments.
-
-```
-]activate .
-]instantiate
-]build PicoQuant
-```
 
 ## Running the unittests
 

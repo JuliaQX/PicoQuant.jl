@@ -22,12 +22,12 @@ Constructor for MPS state which takes an tensor network circuit and list of mps
 nodes and populates fields which enables one ot efficiently retrieve amplitudes
 via the array interface
 """
-function MPSState(network::TensorNetworkCircuit, mps_nodes::Array{Symbol, 1})
+function MPSState(::Type{T}, network::TensorNetworkCircuit, mps_nodes::Array{Symbol, 1}) where {T <: Number}
     n = length(mps_nodes)
     # we create arrays to store node data structure which contains the meta data
     # and data arrays which we create for each mps tensor
     nodes = Array{Node, 1}(undef, n)
-    data_tensors = Array{Array{ComplexF64}, 2}(undef, (n, 2))
+    data_tensors = Array{Array{T}, 2}(undef, (n, 2))
     output_positions = Array{Int64, 1}(undef, length(mps_nodes))
     for i = 1:length(mps_nodes)
         node_label = mps_nodes[i]
@@ -43,6 +43,7 @@ function MPSState(network::TensorNetworkCircuit, mps_nodes::Array{Symbol, 1})
                     load_tensor_data(network, node_label),
                                      (output_positions[i], other_positions...))
         nodes[i] = Node(network.nodes[node_label].indices[[other_positions...]],
+                        collect(size(tensor)),
                         Symbol("n_$i"))
         data_tensors[i, :] = [tensor[x,..] for x in 1:2]
     end
@@ -50,7 +51,11 @@ function MPSState(network::TensorNetworkCircuit, mps_nodes::Array{Symbol, 1})
     for (i, e) in zip(output_positions, network.qubit_ordering)
         ordering[e] = i
     end
-    MPSState{ComplexF64, n}(data_tensors, nodes, ordering)
+    MPSState{T, n}(data_tensors, nodes, ordering)
+end
+
+function MPSState(network::TensorNetworkCircuit, mps_nodes::Array{Symbol, 1})
+    MPSState(ComplexF32, network::TensorNetworkCircuit, mps_nodes::Array{Symbol, 1})
 end
 
 """
@@ -87,7 +92,7 @@ function getindex(a::MPSState{T, N}, i::Vararg{Int, N}) where {T, N}
         n2 = a.nodes[idx]
         common, remaining = sort_indices(n1, n2)
         indices = create_ncon_indices(n1, n2, common, remaining)
-        n1 = Node(remaining, :n1)
+        n1 = Node(remaining, Int64[], :n1)
         n2_data = a.data_tensors[idx, conf_map(i[a.ordering[idx]])]
         n1_data = ncon([n1_data, n2_data],  indices)
     end
