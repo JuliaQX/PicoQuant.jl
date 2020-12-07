@@ -89,4 +89,21 @@ using FFTW
             overlap(picoquant_ψ, qiskit_Ψ) ≈ 1.
         end
     end
+
+    @testset "iSWAP RQC circuit test" begin
+        @test begin
+            n = 3; m = 3; depth = 8
+
+            rqc = create_RQC(n, m, depth;
+                            use_iswap=true, final_Hadamard_layer=true)
+
+            qiskit_Ψ = get_statevector_using_qiskit(rqc, big_endian=false)
+
+            picoquant_ψ = get_statevector_using_picoquant(rqc)
+
+            overlap = (a, b) -> abs(transpose(conj.(a)) * b)
+
+            overlap(picoquant_ψ, qiskit_Ψ) ≈ 1.
+        end
+    end
 end

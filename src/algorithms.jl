@@ -181,9 +181,17 @@ end
 
 Generate a RQC circuit acting on a grid of qubits whose row and column
 numbers are (rows, cols).
+
+CZ gates are used by default as the two qubit gates. Setting 'use_iswap' to
+true will use iSWAP gates inplace of CZ gates.
+
+Setting 'final_Hadamard_layer' to true will include a layer of Hadamard gates
+at the end of the circuit.
 """
 function create_RQC(rows::Int, cols::Int, depth::Int,
-                    seed::Union{Int, Nothing}=nothing)
+                    seed::Union{Int, Nothing}=nothing;
+                    use_iswap::Bool=false,
+                    final_Hadamard_layer::Bool=false)
 
     if seed === nothing
         rng = MersenneTwister()
@@ -199,7 +207,8 @@ function create_RQC(rows::Int, cols::Int, depth::Int,
     # TODO: x and y should be replaced by sqrt of x and y
     gates = Dict("h" => rqc.circ.h, "cz" => rqc.circ.cz, "t" => rqc.circ.t,
                  "x" => target -> rqc.circ.rx(pi/2, target),
-                 "y" => target -> rqc.circ.ry(pi/2, target))
+                 "y" => target -> rqc.circ.ry(pi/2, target),
+                 "iswap" => rqc.circ.iswap)
 
     # A function to add a gate to the rqc with specific target qubits.
     function add_gate!(rqc::RQC, gate::String, target_qubits)
@@ -220,13 +229,14 @@ function create_RQC(rows::Int, cols::Int, depth::Int,
     # Loop through the patterns applying the two qubit gates and apply a random
     # single qubit gate to the appropriate qubits.
     pattern = [3, 1, 6, 8, 5, 7, 2, 4]
+    two_qubit_gate = use_iswap ? "iswap" : "cz"
     for i in 0:depth-1
         i = pattern[i%8 + 1]
 
         if !(length(gate_patterns[i]) == 0)
             # Apply the two qubit gates.
             for targets in gate_patterns[i]
-                add_gate!(rqc, "cz", targets)
+                add_gate!(rqc, two_qubit_gate, targets)
             end
 
             # Apply the single qubit gates
@@ -247,6 +257,12 @@ function create_RQC(rows::Int, cols::Int, depth::Int,
         end
 
         rqc.circ.barrier()
+    end
+
+    if final_Hadamard_layer
+        for i in 1:rqc.n, j in 1:rqc.m
+            add_gate!(rqc, "h", [[i, j]])
+        end
     end
 
     rqc.circ
