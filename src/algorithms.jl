@@ -177,10 +177,18 @@ function out_of_bounds(rqc::RQC, targets::Array{Array{Int, 1}, 1})
 end
 
 """
-    function create_RQC(rows::Int, cols::Int)
+    function create_RQC(rows::Int, cols::Int, depth::Int,
+                        seed::Union{Int, Nothing}=nothing;
+                        use_iswap::Bool=false,
+                        final_Hadamard_layer::Bool=false)
 
-Generate a RQC circuit acting on a grid of qubits whose row and column
-numbers are (rows, cols).
+Generate a random quantum circuit with a (rows x cols) grid of qubits. The
+parameter 'depth' is the number of one and two qubit gate layers to be used in
+the circuit.
+
+The single qubit gates used are chossen randomly from the set
+{T, sqrt(X), sqrt(Y)}. The seed for the random selection can be set with the
+seed parameter.
 
 CZ gates are used by default as the two qubit gates. Setting 'use_iswap' to
 true will use iSWAP gates inplace of CZ gates.
