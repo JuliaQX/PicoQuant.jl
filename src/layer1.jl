@@ -6,6 +6,7 @@ using CUDA
 using TensorOperations, HDF5
 using JSON
 
+
 # *************************************************************************** #
 #                             dsl functions
 # *************************************************************************** #
@@ -164,7 +165,7 @@ function decompose_tensor(tensor::AbstractArray{<: T},
     end
 
     # ensure that the threshold is at least equal to the precision
-    threshold = max(threshold, eps(real(T)))
+    threshold = max(threshold, sqrt(eps(real(T))))
 
     # find number of singular values above the threshold
     s_norm = sqrt(sum(F.S .^ 2))

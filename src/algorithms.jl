@@ -177,7 +177,7 @@ function out_of_bounds(rqc::RQC, targets::Array{Array{Int, 1}, 1})
 end
 
 """
-    function create_RQC(rows::Int, cols::Int, depth::Int,
+    create_RQC(rows::Int, cols::Int, depth::Int,
                         seed::Union{Int, Nothing}=nothing;
                         use_iswap::Bool=false,
                         final_Hadamard_layer::Bool=false)

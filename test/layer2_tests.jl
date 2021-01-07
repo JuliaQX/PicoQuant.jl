@@ -340,6 +340,8 @@ include("test_utils.jl")
                     mps_nodes = contract_mps_tensor_network_circuit!(tn)
                     backend_funcs[:execute]()
                     mps_state = MPSState(tn, mps_nodes)
+                    size(mps_state) == Tuple(ones(4) .* 2)
+                    length(mps_state) == 2 << n
                     mps_state["11111"] ≈ mps_state["00000"] ≈ 1/sqrt(2)
                     mps_state["10101"] ≈ 0
                 finally

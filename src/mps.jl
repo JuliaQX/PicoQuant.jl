@@ -43,7 +43,7 @@ function MPSState(::Type{T}, network::TensorNetworkCircuit, mps_nodes::Array{Sym
                     load_tensor_data(network, node_label),
                                      (output_positions[i], other_positions...))
         nodes[i] = Node(network.nodes[node_label].indices[[other_positions...]],
-                        collect(size(tensor)),
+                        network.nodes[node_label].dims[[other_positions...]],
                         Symbol("n_$i"))
         data_tensors[i, :] = [tensor[x,..] for x in 1:2]
     end
@@ -92,7 +92,7 @@ function getindex(a::MPSState{T, N}, i::Vararg{Int, N}) where {T, N}
         n2 = a.nodes[idx]
         common, remaining = sort_indices(n1, n2)
         indices = create_ncon_indices(n1, n2, common, remaining)
-        n1 = Node(remaining, Int64[], :n1)
+        n1 = Node(remaining, ones(Int64, length(remaining)), :n1) # TODO: correct dummy dims
         n2_data = a.data_tensors[idx, conf_map(i[a.ordering[idx]])]
         n1_data = ncon([n1_data, n2_data],  indices)
     end

@@ -4,7 +4,7 @@ using DataStructures
 using LinearAlgebra
 
 export TensorNetworkCircuit
-export Node, Edge, add_gate!, edges
+export Node, Edge, add_gate!, edges, getnode, getedge
 export new_label!, add_input!, add_output!
 export load_qasm_as_circuit_from_file, load_qasm_as_circuit
 export convert_qiskit_circ_to_network, transpile_circuit
@@ -249,15 +249,6 @@ function add_gate!(network::TensorNetworkCircuit,
 end
 
 """
-    edges(network::TensorNetworkCircuit)
-
-Function to return edges from a given network
-"""
-function edges(network::TensorNetworkCircuit)
-    network.edges
-end
-
-"""
     add_input!(network::TensorNetworkCircuit, config::String)
 
 Function to add input nodes to a tensor network circuit with a given input
@@ -319,6 +310,19 @@ function add_output!(network::TensorNetworkCircuit, config::String)
             network.edges[output_index].dst = node_label
         end
     end
+end
+
+# *************************************************************************** #
+#                  TensorNetworkCircuit accessor functions
+# *************************************************************************** #
+
+"""
+    edges(network::TensorNetworkCircuit)
+
+Function to return edges from a given network
+"""
+function edges(network::TensorNetworkCircuit)
+    network.edges
 end
 
 """
@@ -432,6 +436,25 @@ function virtualedges(network::TensorNetworkCircuit,
     [x for x in idxs if network.edges[x].virtual]
 end
 
+"""
+    function getedge(network::TensorNetworkCircuit, edge_label::Symbol)
+
+Return the requested edge
+"""
+function getedge(network::TensorNetworkCircuit, edge_label::Symbol)
+    network.edges[edge_label]
+end
+
+"""
+    function getnode(network::TensorNetworkCircuit, node_label::Symbol)
+
+Return the requested node
+"""
+function getnode(network::TensorNetworkCircuit, node_label::Symbol)
+    network.nodes[node_label]
+end
+
+
 # *************************************************************************** #
 #                  Functions to read circuit from qasm
 # *************************************************************************** #
@@ -506,7 +529,10 @@ end
 """
     convert_qiskit_circ_to_network(circ, backend::AbstractBackend=InteractiveBackend();
                                             decompose::Bool=false,
-                                            transpile::Bool=false)
+                                            transpile::Bool=false,
+                                            couplings::Union{Nothing,
+                                                            Array{<: Array{<:Integer, 1}, 1}}
+                                                            = nothing))
 
 Given a qiskit circuit object, this function will convert this to a tensor
 network circuit with a backend set to `backend`. If the decompose option is
@@ -517,12 +543,15 @@ are only applied between neighbouring qubits.
 """
 function convert_qiskit_circ_to_network(circ, backend::AbstractBackend=InteractiveBackend();
                                         decompose::Bool=false,
-                                        transpile::Bool=false)
+                                        transpile::Bool=false,
+                                        couplings::Union{Nothing,
+                                                         Array{<: Array{<:Integer, 1}, 1}}
+                                                         = nothing)
     barrier = pyimport("qiskit.extensions.standard.barrier")
     qi = pyimport("qiskit.quantum_info")
     n_qubits = convert(Int, circ.n_qubits)
     if transpile
-        circ, qubit_ordering = transpile_circuit(circ)
+        circ, qubit_ordering = transpile_circuit(circ, couplings)
     else
         qubit_ordering = collect(1:n_qubits)
     end

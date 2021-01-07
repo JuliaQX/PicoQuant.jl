@@ -3,8 +3,8 @@ using Logging
 
 export random_contraction_plan, inorder_contraction!
 export contract_pair!, contract_network!, full_wavefunction_contraction!
-export compress_tensor_chain!, decompose_tensor!
-export contract_mps_tensor_network_circuit!
+export compress_tensor_chain!, decompose_tensor!, compress_bond!
+export contract_mps_tensor_network_circuit!, contract_tensor_network_circuit_with_compression!
 export calculate_mps_amplitudes!
 export cost
 
@@ -25,14 +25,13 @@ Merge the common bonds between two nodes
 function merge_common_bonds!(network::TensorNetworkCircuit, a_label::Symbol, b_label::Symbol)
     a = network.nodes[a_label]
     b = network.nodes[b_label]
-    a_common_indices = findall(x -> x in b.indices, a.indices)
-    common_edges = a.indices[a_common_indices]
+    common_edges = intersect(a.indices, b.indices)
 
-    if length(a_common_indices) > 1
-
+    if length(common_edges) > 1
         index_map_a = Dict([v => k for (k, v) in enumerate(a.indices)])
         index_map_b = Dict([v => k for (k, v) in enumerate(b.indices)])
 
+        a_common_indices = findall(x -> x in b.indices, a.indices)
         a_remaining_indices = findall(x -> !(x in b.indices), a.indices)
         permute_tensor(network, a_label, vcat(a_remaining_indices, a_common_indices))
 
@@ -45,8 +44,9 @@ function merge_common_bonds!(network::TensorNetworkCircuit, a_label::Symbol, b_l
         indices_b = vcat(b.indices[b_remaining_indices], [new_edge])
 
         dims_map_a = Dict{Symbol, Int64}(a.indices .=> a.dims)
-        dims_map_a = Dict{Symbol, Int64}(b.indices .=> b.dims)
-        dims_map_a[new_edge] = dims_map_b[new_edge] = prod([dims_map_a[ind] for ind in a_common_indices])
+        dims_map_b = Dict{Symbol, Int64}(b.indices .=> b.dims)
+
+        dims_map_a[new_edge] = dims_map_b[new_edge] = prod([dims_map_a[a.indices[ind]] for ind in a_common_indices])
         dims_a = [dims_map_a[index] for index in indices_a]
         dims_b = [dims_map_b[index] for index in indices_b]
 
@@ -83,15 +83,19 @@ function inorder_contraction!(network::TensorNetworkCircuit)
         end
     end
 
+    # create array of layers to contract in
     gate_layers = [k for k in sort(collect(keys(layer_nodes))) if k > 0]
+    # the output layer has layer index -1 to disginguish it. If it exists, add it to list
     if haskey(layer_nodes, -1)
         gate_layers = vcat(gate_layers, [-1])
     end
 
     for layer in gate_layers
         nodes = layer_nodes[layer]
+
         new_nodes = Array{Symbol, 1}(undef, length(nodes))
         for (i, node) in enumerate(nodes)
+
             in_nodes = unique(inneighbours(network, node))
             for in_node in in_nodes
                 node = contract_pair!(network, in_node, node)
@@ -484,7 +488,7 @@ function decompose_tensor!(network::TensorNetworkCircuit,
                            node_label::Symbol,
                            left_indices::Array{Symbol, 1},
                            right_indices::Array{Symbol, 1};
-                           threshold::AbstractFloat=1e-14,
+                           threshold::AbstractFloat=1e-13,
                            max_rank::Int=0,
                            left_label::Union{Nothing, Symbol}=nothing,
                            right_label::Union{Nothing, Symbol}=nothing)
@@ -567,11 +571,8 @@ Contract a tensor network representing a quantum circuit using MPS techniques
 function contract_mps_tensor_network_circuit!(network::TensorNetworkCircuit;
                                               max_bond::Int=2,
                                               threshold::AbstractFloat=1e-13,
-                                              max_rank::Int=0)
-    # identify the MPS nodes as the input nodes
-    mps_nodes = [network.edges[x].src for x in network.input_qubits]
-    @assert all([x !== nothing for x in mps_nodes]) "Input qubit values must be set"
-
+                                              max_rank::Integer=0,
+                                              pbc::Bool=false)
     # identify the MPS nodes as the input nodes
     qubits = length(network.input_qubits)
     mps_nodes = [network.edges[x].src for x in network.input_qubits]
@@ -591,7 +592,6 @@ function contract_mps_tensor_network_circuit!(network::TensorNetworkCircuit;
         gate_layers = vcat(gate_layers, [-1])
     end
 
-    bond_counts = zeros(Int, qubits-1)
     for gate_layer in gate_layers
         nodes = layer_nodes[gate_layer]
 
@@ -608,15 +608,12 @@ function contract_mps_tensor_network_circuit!(network::TensorNetworkCircuit;
 
         sort!(updated_indices)
         for i in 1:(length(updated_indices)-1)
-            @assert (updated_indices[i+1] -  updated_indices[i]) == 1 "Gates between non-neighboring qubits"
-            bond_counts[updated_indices[i]] += 1
-        end
-
-        for bond_idx in 1:qubits-1
-            if bond_counts[bond_idx] > 0
-                compress_bond!(network, mps_nodes[bond_idx], mps_nodes[bond_idx + 1], threshold=threshold, max_rank=max_rank)
-                bond_counts[bond_idx] = 0
+            distance = updated_indices[i+1] - updated_indices[i]
+            if pbc
+                distance = min(distance, updated_indices[i] + length(mps_nodes)  - updated_indices[i+1])
             end
+            @assert distance == 1 "Gates between non-neighboring qubits"
+            compress_bond!(network, mps_nodes[updated_indices[i]], mps_nodes[updated_indices[i+1]], threshold=threshold, max_rank=max_rank)
         end
     end
 
@@ -644,4 +641,63 @@ function calculate_mps_amplitudes!(network::TensorNetworkCircuit,
     permute_tensor(network, output_node, network.qubit_ordering)
     reshape_tensor(network, output_node, [collect(1:length(mps_nodes))])
     save_output(network, output_node, result)
+end
+
+"""
+    function contract_tensor_network_circuit_with_compression(network::TensorNetworkCircuit;
+                                                              max_bond::Integer=2,
+                                                              threshold::AbstractFloat=1e-13,
+                                                              max_rank::Integer=0)
+
+Contract a tensor network representing a quantum circuit tensor network compresson on bonds
+"""
+function contract_tensor_network_circuit_with_compression!(network::TensorNetworkCircuit;
+                                                           max_bond::Integer=2,
+                                                           threshold::AbstractFloat=1e-13,
+                                                           max_rank::Integer=0)
+    # identify the network nodes as the input nodes
+    qubits = length(network.input_qubits)
+    network_nodes = [network.edges[x].src for x in network.input_qubits]
+    @assert all([x !== nothing for x in network_nodes]) "Input qubit values must be set"
+
+    layer_nodes = Dict{Int64, Array{Symbol,1}}()
+    for (k, v) in pairs(network.node_layers)
+        if haskey(layer_nodes, v)
+            push!(layer_nodes[v], k)
+        else
+            layer_nodes[v] = [k]
+        end
+    end
+
+    gate_layers = [k for k in sort(collect(keys(layer_nodes))) if k > 0]
+    if haskey(layer_nodes, -1)
+        gate_layers = vcat(gate_layers, [-1])
+    end
+
+    for gate_layer in gate_layers
+        nodes = layer_nodes[gate_layer]
+
+        updated_indices = Array{Int64, 1}(undef, length(nodes))
+        for (i, node) in enumerate(nodes)
+            # find the input node to connect to it
+            input_node = inneighbours(network, node)[1]
+            @assert input_node in network_nodes "$input_node not in network nodes"
+
+            idx = findfirst(x -> x == input_node, network_nodes)
+            network_nodes[idx] = contract_pair!(network, input_node, node)
+            updated_indices[i] = idx
+         end
+
+        if length(updated_indices) > 1
+            for i in 1:(length(updated_indices)-1)
+                compress_bond!(network, network_nodes[updated_indices[i]], network_nodes[updated_indices[i+1]], threshold=threshold, max_rank=max_rank)
+            end
+        end
+    end
+
+    # save the final mps tensors
+    for (i, node) in enumerate(network_nodes)
+        save_output(network, node, String(node))
+    end
+    network_nodes
 end
